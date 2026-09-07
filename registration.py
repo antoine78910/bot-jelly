@@ -9,7 +9,7 @@ from embeds import EMBED_COLOR
 from notify_roles import notify_role_mention
 
 REGISTRATION_TEMPLATE = "registration_welcome"
-DEFAULT_LOG_CHANNEL_ID = 1509831488244547625
+DEFAULT_LOG_CHANNEL_ID = 0
 
 CONFIG_PATH = Path(__file__).parent / "channel_config.json"
 

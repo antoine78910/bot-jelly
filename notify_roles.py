@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 CONFIG_PATH = Path(__file__).parent / "channel_config.json"
-DEFAULT_NOTIFY_ROLE_ID = 1509475252953153627
 
 
 def notify_role_id() -> int | None:
@@ -18,7 +17,7 @@ def notify_role_id() -> int | None:
         if raw and str(raw).isdigit():
             return int(raw)
 
-    return DEFAULT_NOTIFY_ROLE_ID
+    return None
 
 
 def notify_role_mention() -> str:
