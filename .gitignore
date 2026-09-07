@@ -1,0 +1,12 @@
+.env
+publish_state.json
+assets/clips/output/
+!assets/clips/README.md
+__pycache__/
+*.pyc
+.venv/
+venv/
+scripts/whop_broadcast_state.json
+scripts/whop_members_export.csv
+scripts/whop_members_export.json
+scripts/whop_emails_all.csv

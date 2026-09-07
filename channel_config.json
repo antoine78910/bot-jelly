@@ -1,0 +1,27 @@
+{
+  "_comment": "channels = salon ID → template | channel_links = mentions cliquables dans start_here",
+  "registration_log_channel": "1509831488244547625",
+  "discord_join_log_channel": "1510936933575163984",
+  "content_generation_log_channel": "1510937017582620672",
+  "notify_role_id": "1509475252953153627",
+  "clip_batch_size": 3,
+  "channel_links": {
+    "account_setup": "1509469427249446993",
+    "apply": "1509827929843171420",
+    "warmup": "1509469526805315650",
+    "content_bot": "1509828321154830356",
+    "dm_automation": "1509469972957499453",
+    "payout_submission": "1509828628567822396"
+  },
+  "channels": {
+    "1509137923063418984": "start_here",
+    "1509828068670177300": "payouts",
+    "1509469427249446993": "account_setup",
+    "1509469526805315650": "warmup",
+    "1509469972957499453": "dm_automation",
+    "1509827929843171420": "registration_welcome",
+    "1509828628567822396": "payout_submission_welcome",
+    "1509828191437459597": "payout_proofs",
+    "1509828321154830356": "content_generator_welcome"
+  }
+}
