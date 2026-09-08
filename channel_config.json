@@ -12,16 +12,18 @@
     "warmup": "1546460043476734042",
     "content_bot": "1546460102234607687",
     "dm_automation": "1546460072681668668",
-    "payout_submission": "1546460130470527017"
+    "payout_submission": "1546460130470527017",
+    "payout_proofs": "1546459879462408252"
   },
   "channels": {
     "1546459228125012051": "start_here",
+    "1546459845073444926": "payouts",
     "1546460016184266836": "account_setup",
     "1546460043476734042": "warmup",
     "1546460072681668668": "dm_automation",
     "1546459810378162186": "registration_welcome",
     "1546460130470527017": "payout_submission_welcome",
-    "1509828191437459597": "payout_proofs",
+    "1546459879462408252": "payout_proofs",
     "1546460102234607687": "content_generator_welcome"
   }
 }
