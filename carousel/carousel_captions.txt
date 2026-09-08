@@ -1,0 +1,143 @@
+# One line = one pâté. | = line break inside a pâté.
+# ! = white box / black text.  !!segment = white text on pink.
+# {{a|b|c}} = pick one at random (~10–20% wording variation).
+# # style: routine|etape  → keeps slides 2–4 coherent (same family).
+# Sections: === hooks === (1)  === method === (2)  === hirly === (3)  === recap === (4)
+# Refs: assets/references/hooks/  assets/references/method/
+
+=== hooks ===
+
+Je vais être en|!!DANGER DE 💀 M O R T 💀|après ce post 😂
+Voici la {{méthode|technique}} qui me|permet de trouver un|{{travail|job|CDI}} quand je veux avec|{{20 minutes|20 min}} d'efforts 📝
+
+---
+
+POV : {{ton mari a trouvé|t'as trouvé}}|{{son|ton}} CDI ({{hyper|très}} bien payé)|grâce à {{tes conseils|Google Emploi}} 💋
+({{J'ai pas été RH 3 ans|J'ai pas fait RH 3 ans}}|pour rien 😭)
+!({{Voici la stratégie|Voici la méthode|Swipe pour la méthode}})
+
+---
+
+POV : t'as trouvé ton|premier CDI ({{très|hyper}} bien payé)|grâce aux conseils de|ta sœur
+(Elle est pas RH depuis|{{4 ans|3 ans}} pour rien|finalement 😭)
+
+=== method ===
+
+# style: routine
+# Style ref: methode_google_emploi.png — rose + Google Emploi blanc
+Chaque {{matin|matinée}}|De {{8h00 à 8h10|8h à 8h10}}
+Je {{me rends sur|vais sur}}
+!{{Google Emploi|Google Jobs}}
+{{Le meilleur agregateur, il|C'est le meilleur agregateur, il}}|regroupe {{presque toutes|quasi toutes}}|les offres d'emploi {{dispo|disponibles}}|sur le web
+🚨 J'active le filtre|"{{dernières 24h|last 24h}}", pour voir|toutes les {{opportunités|offres}}|{{postées la veille|mises en ligne hier}}.
+Pour l'instant {{j'enregistre|je sauvegarde}}|chaque {{emploi|job}} qui me|plaît
+
+---
+
+# style: routine
+# Style ref: methode_google_jobs_detail.png — phrases plus coupées
+Chaque matinée de {{8h00|8h}} à
+8h10
+Je {{vais sur|me rends sur}}
+!{{Google Jobs|Google Emploi}}
+(C'est un agrégateur sur|lequel il y a {{quasi|presque}} toutes|les offres disponibles sur|le web)
+J'active le filtre «|dernières 24h »,|j'enregistre tous les jobs|qui m'intéressent
+Pour l'instant j'ai|enregistré tous les jobs|intéressants publiés sur|le net il y a moins de 24|heures
+
+---
+
+# style: etape
+# Style ref: etape1_google_jobs.png — fond blanc dominant, rose = Google jobs
+!#étape 1#
+!Stop {{perdre son temps|gâcher du temps}} à|utiliser {{plusieurs|plein de}} sites pour|trouver des offres|d'emploi ({{perte de temps énorme|trop chronophage}})
+!Utilise {{seulement|uniquement}}
+{{Google jobs|Google Emploi|Google Jobs}}
+!C'est un agregateur qui|{{réuni|regroupe}} {{quasi la totalité|presque toutes}} des|offres d'emplois|d'internet au même|endroit
+!(Oublie pas d'utiliser le|filtre "{{dernières 24h|24 dernières heures}}" pour|voir {{que|seulement}} les offres|{{fraîches|du jour}})
+
+=== hirly ===
+
+# style: routine
+# Style ref: cvgood_8h10 — continuum 8h10→8h15 après Google
+Ensuite|De {{8h10 à 8h15|8h10 à 8h20}}
+Je {{me rends sur|vais sur}}
+!Hirly
+Je colle l'URL {{Google Jobs|Google Emploi}}|d'une offre qui me {{plaît|convient}} —|il me trouve {{des centaines|plein}}|d'offres {{similaires|du même style}}
+{{J'upload|Je dépose}} mon CV : mots-clés ATS|{{par offre|pour chaque annonce}},|swipe droite = postuler /|gauche = passer
+!(Je suis tout dans l'inbox|{{si interview|si entretien}})
+
+---
+
+# style: routine
+# Style ref: cvgood_8h10_v2
+Ensuite de {{8h10 à 8h15|8h10 à 8h20}}
+Je {{vais sur|me rends sur}}
+!Hirly
+Je me fais matcher {{des centaines|énormément}}|d'offres {{similaires|comparables}} à|celle de Google Jobs
+Upload du CV (ATS {{optimisé|adapté}}|à {{chaque offre|chaque post}}),|puis je swipe pour postuler
+!(Inbox = suivi candidatures|{{+ interviews|+ entretiens}})
+
+---
+
+# style: etape
+# Style ref: etape2_cvgood.png — blanc dominant, rose = produit
+!#étape 2#
+!Colle l'URL {{Google Jobs|Google Emploi}}|d'une offre qui te {{plaît|convient}} sur
+Hirly
+!Il te trouve {{des centaines|plein}}|d'offres {{similaires|du même style}}
+!{{Upload|Envoie}} ton CV (mots-clés ATS|{{adaptés|optimisés}} à {{chaque offre|l'annonce}})
+!(Swipe droite = postuler,|gauche = passer — suit tout|dans l'inbox {{si interview|si tu as un entretien}})
+
+---
+
+# style: etape
+!#étape 2#
+!Sur Hirly, colle le lien|d'un post Google Jobs
+Hirly
+!Le site te sort {{des centaines|énormément}}|de posts {{similaires|comparables}}
+!Upload ton CV : il {{reprend|injecte}}|les mots-clés ATS {{par offre|pour chaque annonce}}
+!(Swipe pour postuler / skip,|puis suis tes candidatures|{{via l'inbox|dans ton inbox}})
+
+---
+
+# style: etape
+!#étape 2#
+!Prends une offre qui te|va sur Google Jobs, colle|l'URL sur
+Hirly
+!Tu obtiens {{des centaines|une tonne}} d'offres|similaires en {{un instant|quelques secondes}}
+!Upload ton CV {{optimisé ATS|avec les bons mots-clés}},|swipe à droite pour|postuler
+!(Inbox = suivi des|candidatures {{+ interviews|+ entretiens}})
+
+=== recap ===
+
+# style: routine
+# Style ref: recap_8h15.png
+Et pour finir|De {{8h15 à 8h20|8h15 à 8h25}}
+J'{{envoie toutes mes candidatures|envoie mes candidatures}}
+Et voilà, en {{20 minutes|20 min}} j'ai|postulé avec {{EXCELLENCE|un CV au top}}|à toutes les offres {{récentes|fraîches}}|des {{dernières 24H|dernières 24h}}
+Ce qui fait de moi un|candidat qui a des chances|{{énormes|réelles}} d'être {{rappelé|contacté}}
+
+---
+
+# style: routine
+# Style ref: recap_8h15_v2.png
+Et pour finir|De {{8h15 à 8h20|8h15 à 8h25}}
+Je postule aux offres|d'emploi avec mes|candidatures {{optimisées|préparées}}
+Je résume, j'ai postulé|avec des CV {{ultra optimisés|optimisés ATS}}|à des jobs qui viennent|d'être postés ({{même pas 24h|moins de 24h}})
+C'est aussi simple que ça|d'{{optimiser|maximiser}} {{ces|tes}} chances|{{au maximum|au max}}
+
+---
+
+# style: etape
+# Style ref: recap_etape.png — blanc dominant
+!C'est tout ce que|tu dois savoir
+!Envoie une candidature|{{dédiée|ciblée}} à une offre|d'emploi {{fraîche|récente}},|c'est la clé
+!Aussi simple que ça,|écoute pas les gens qui|compliquent tout 🤨
+
+---
+
+# style: etape
+!#récap#
+!Tu as la méthode :|Google Jobs → Hirly →|candidatures {{fraîches|du jour}}
+!Une offre récente + un CV|{{dédié|optimisé ATS}} =|{{beaucoup|énormément}} plus de|chances d'être rappelé
+!Aussi simple que ça 🤨

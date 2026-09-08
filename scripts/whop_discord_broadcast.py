@@ -47,7 +47,7 @@ We just launched the **Jelly Clipping Discord** — join here:
 {DISCORD_INVITE}
 
 Inside you'll get everything you need to start earning:
-- Click **Generate Content** to get ready-to-post clips
+- Click **Generate Content** to get ready-to-post carousels
 - Post them on Instagram — that's it
 
 No complicated setup. Just generate, post, and get paid.

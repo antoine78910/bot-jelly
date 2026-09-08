@@ -50,5 +50,5 @@ assets/clips/
 
 ## Discord
 
-- **Generate Content** → 1 clip in your private `clips-username` thread  
-- **Batch Generate** → modal, 1–5 clips (different random combos)
+Discord **Generate Content** now builds 4-slide carousels from `carousel/`
+(hook + Google + Hirly + recap), not these video clips.

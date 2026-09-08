@@ -8,6 +8,7 @@ import aiohttp
 import discord
 
 from clip_assembler import ClipAssemblyError, prepare_for_discord_upload
+from carousel_assembler import CarouselAssemblyError
 
 LITTERBOX_API = "https://litterbox.catbox.moe/resources/internals/api.php"
 EXTERNAL_LINK_TTL = "72h"
@@ -22,8 +23,21 @@ def is_payload_too_large(exc: BaseException) -> bool:
     return False
 
 
+def _content_type_for(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".png":
+        return "image/png"
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if suffix == ".webp":
+        return "image/webp"
+    if suffix == ".mp4":
+        return "video/mp4"
+    return "application/octet-stream"
+
+
 async def upload_to_external_host(path: Path) -> str:
-    """Upload a clip to litterbox.catbox.moe (public URL, valid 72 hours)."""
+    """Upload a file to litterbox.catbox.moe (public URL, valid 72 hours)."""
     if not path.is_file():
         raise ClipAssemblyError(f"File not found: {path}")
 
@@ -34,7 +48,7 @@ async def upload_to_external_host(path: Path) -> str:
         "fileToUpload",
         path.read_bytes(),
         filename=path.name,
-        content_type="video/mp4",
+        content_type=_content_type_for(path),
     )
 
     timeout = aiohttp.ClientTimeout(total=300)
@@ -90,6 +104,62 @@ async def deliver_clip_to_thread(
         suppress_embeds=True,
     )
     return "external", url
+
+
+def _discord_files(slides: list[Path], clip_label: str) -> list[discord.File]:
+    slug = clip_label.replace(" ", "_").lower()
+    return [
+        discord.File(path, filename=f"{slug}_{path.name}")
+        for path in slides
+    ]
+
+
+async def deliver_carousel_to_thread(
+    thread: discord.Thread,
+    member: discord.Member,
+    slides: list[Path],
+    *,
+    clip_label: str,
+) -> tuple[str, str | None]:
+    """
+    Send 4 carousel slides as a Discord album, then one-by-one, then external links.
+    """
+    if len(slides) < 1:
+        raise CarouselAssemblyError("No carousel slides to upload.")
+
+    missing = [str(path) for path in slides if not path.is_file()]
+    if missing:
+        raise CarouselAssemblyError(f"Carousel files missing: {', '.join(missing)}")
+
+    try:
+        await thread.send(
+            f"{member.mention} 🎠 **{clip_label}**",
+            files=_discord_files(slides, clip_label),
+        )
+        return "discord", None
+    except discord.HTTPException as exc:
+        if not is_payload_too_large(exc):
+            raise
+
+    try:
+        await thread.send(f"{member.mention} 🎠 **{clip_label}**")
+        for path in slides:
+            await thread.send(file=discord.File(path, filename=path.name))
+        return "discord", None
+    except discord.HTTPException as exc:
+        if not is_payload_too_large(exc):
+            raise
+
+    urls: list[str] = []
+    for path in slides:
+        urls.append(await upload_to_external_host(path))
+    joined = "\n".join(f"• {url}" for url in urls)
+    await thread.send(
+        f"{member.mention} 🎠 **{clip_label}** — too large for Discord, "
+        f"download here (links valid **{EXTERNAL_LINK_TTL}**):\n{joined}",
+        suppress_embeds=True,
+    )
+    return "external", urls[0] if urls else None
 
 
 async def _prepare(path: Path, *, emergency: bool) -> Path:

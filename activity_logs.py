@@ -9,7 +9,6 @@ from pathlib import Path
 
 import discord
 
-from clip_assembler import ClipRecipe, recipe_summary
 from notify_roles import notify_role_mention
 
 CONFIG_PATH = Path(__file__).parent / "channel_config.json"
@@ -66,7 +65,7 @@ def _log_channel(client: discord.Client, channel_id: int) -> discord.TextChannel
 @dataclass
 class ClipOutput:
     label: str
-    recipe: ClipRecipe
+    summary: str
     delivery_mode: str
     url: str | None = None
 
@@ -119,7 +118,7 @@ async def log_content_generation(
     embed = discord.Embed(
         title="Content generated",
         description=(
-            f"{member.mention} generated **{created}/{requested}** clip"
+            f"{member.mention} generated **{created}/{requested}** carousel"
             f"{'s' if requested != 1 else ''} via **{mode_label}**.\n"
             f"Private thread: {thread.mention}"
         ),
@@ -133,7 +132,7 @@ async def log_content_generation(
         delivery = "Discord upload"
         if output.delivery_mode == "external" and output.url:
             delivery = f"[External link]({output.url}) (72h)"
-        value = f"{recipe_summary(output.recipe)}\n**Delivery:** {delivery}"
+        value = f"{output.summary}\n**Delivery:** {delivery}"
         embed.add_field(name=output.label, value=value[:1024], inline=False)
 
     embed.set_footer(text="Content generator feed")

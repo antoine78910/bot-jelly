@@ -1,6 +1,7 @@
 .env
 publish_state.json
 assets/clips/output/
+carousel/output/
 !assets/clips/README.md
 __pycache__/
 *.pyc

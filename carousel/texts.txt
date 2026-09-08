@@ -1,0 +1,14 @@
+# Carousel texts — one per line, used randomly on slides
+# Lines starting with # are ignored
+# Use @N at end for weight (higher = more likely), e.g. "My text @3"
+
+This app changed my life 🔥
+I made $10K in one week
+Stop scrolling, start earning
+You need to see this
+The secret no one talks about
+How I quit my 9-5
+This strategy is insane
+POV: you found the cheat code
+Watch this before it's too late
+I can't believe this works

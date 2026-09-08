@@ -39,16 +39,16 @@ def thread_name_for(user: discord.User) -> str:
 
 def progress_embed(current: int, total: int) -> discord.Embed:
     return discord.Embed(
-        description=f"⏳ **Generating video {current}/{total}...**",
+        description=f"⏳ **Generating carousel {current}/{total}...**",
         color=PROGRESS_COLOR,
     )
 
 
 def batch_complete_embed(generated: int, requested: int, thread: discord.Thread) -> discord.Embed:
     if requested > 1:
-        heading = f"✅ **Batch complete — {generated}/{requested} videos**"
+        heading = f"✅ **Batch complete — {generated}/{requested} carousels**"
     else:
-        heading = f"✅ **Complete — {generated}/{requested} video**"
+        heading = f"✅ **Complete — {generated}/{requested} carousel**"
     return discord.Embed(
         description=(
             f"{heading}\n"
@@ -62,11 +62,11 @@ def panel_embed() -> discord.Embed:
     return discord.Embed(
         title="🎬 Content Generator",
         description=(
-            "Click a button below to generate a unique clip.\n\n"
-            "**Generate Content** — 1 video\n"
-            "**Batch Generate** — up to 5 videos (different hooks, body, music & effects)\n\n"
-            "Each export gets random color, scale, rotation & end cut. "
-            "A random hook line stays upper-mid screen for the full hook segment."
+            "Click a button below to generate a unique 4-slide carousel "
+            "(hook, Google, Hirly, recap).\n\n"
+            "**Generate Content** — 1 carousel\n"
+            "**Batch Generate** — up to 5 carousels (different hooks, body, CTA & photos)\n\n"
+            "Each export randomizes captions, avatar, lifestyle photos, and one visual effect."
         ),
         color=CONTENT_COLOR,
     )
@@ -79,10 +79,9 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
         description=(
             f"Hey {user.mention} — welcome to your private clips thread.\n\n"
             f"You opened this via **{mode_label}**.\n\n"
-            "Your generated clips will appear here as:\n"
-            f"{user.mention} 🎬 + video file.\n\n"
-            "Place assets in `assets/clips/` on the bot server "
-            "(see `assets/clips/README.md`)."
+            "Your generated carousels will appear here as:\n"
+            f"{user.mention} 🎠 + 4 PNG slides.\n\n"
+            "Ready to post as an Instagram/TikTok carousel."
         ),
         color=CONTENT_COLOR,
     )
@@ -190,30 +189,35 @@ async def _generate_clips_for_user(
     count: int,
     progress_message: discord.WebhookMessage,
 ) -> tuple[int, list[str], list[str]]:
-    from clip_assembler import (
-        ClipAssemblyError,
-        ClipRecipe,
-        assemble_clip,
+    from carousel_assembler import (
+        CarouselAssemblyError,
+        CarouselRecipe,
+        assemble_carousel,
         assets_status,
-        cleanup_clip_artifacts,
+        cleanup_carousel_artifacts,
+        recipe_summary,
     )
-    from clip_delivery import deliver_clip_to_thread
+    from clip_delivery import deliver_carousel_to_thread
 
     status = assets_status()
-    if not status["ffmpeg"]:
-        return 0, ["FFmpeg is not installed on the bot machine."], []
-    if status["hooks"] < 1 or status["bodies"] < 1 or status["music"] < 1:
+    if status["avatars"] < 1 or status["photos"] < 1:
         return (
             0,
             [
-                "Missing clip assets. Add files to `assets/clips/hooks`, `body`, and `music` "
-                f"on the bot machine (checked: `{status.get('clips_root', '')}` — "
-                f"hooks={status['hooks']}, body={status['bodies']}, music={status['music']})."
+                "Missing carousel assets. Add files to `carousel/assets/avatars` and "
+                f"`carousel/assets/photos` on the bot machine (checked: `{status.get('root', '')}` — "
+                f"avatars={status['avatars']}, photos={status['photos']})."
             ],
             [],
         )
+    if not status["captions"]:
+        return (
+            0,
+            ["Missing `carousel/carousel_captions.txt` on the bot machine."],
+            [],
+        )
 
-    pending: list[tuple[Path, ClipRecipe]] = []
+    pending: list[CarouselRecipe] = []
     errors: list[str] = []
 
     for index in range(count):
@@ -223,15 +227,15 @@ async def _generate_clips_for_user(
             pass
 
         try:
-            output_path, recipe = await asyncio.to_thread(
-                assemble_clip,
+            recipe = await asyncio.to_thread(
+                assemble_carousel,
                 seed=hash((member.id, index, progress_message.id)) & 0xFFFFFFFF,
             )
-            pending.append((output_path, recipe))
-        except ClipAssemblyError as exc:
-            errors.append(f"Clip {index + 1} failed: {exc}")
+            pending.append(recipe)
+        except CarouselAssemblyError as exc:
+            errors.append(f"Carousel {index + 1} failed: {exc}")
         except discord.HTTPException as exc:
-            errors.append(f"Could not prepare clip {index + 1}: {exc}")
+            errors.append(f"Could not prepare carousel {index + 1}: {exc}")
 
     created = 0
     external_links: list[str] = []
@@ -246,32 +250,32 @@ async def _generate_clips_for_user(
 
         from activity_logs import ClipOutput
 
-        for index, (output_path, recipe) in enumerate(pending, start=1):
-            clip_label = f"Clip {index}/{len(pending)}"
+        for index, recipe in enumerate(pending, start=1):
+            clip_label = f"Carousel {index}/{len(pending)}"
             try:
-                delivery_mode, url = await deliver_clip_to_thread(
+                delivery_mode, url = await deliver_carousel_to_thread(
                     thread,
                     member,
-                    output_path,
+                    recipe.slides,
                     clip_label=clip_label,
                 )
                 created += 1
                 delivered_outputs.append(
                     ClipOutput(
                         label=clip_label,
-                        recipe=recipe,
+                        summary=recipe_summary(recipe),
                         delivery_mode=delivery_mode,
                         url=url,
                     )
                 )
                 if delivery_mode == "external" and url:
                     external_links.append(f"**{clip_label}:** {url}")
-            except ClipAssemblyError as exc:
+            except CarouselAssemblyError as exc:
                 errors.append(f"{clip_label} failed: {exc}")
             except discord.HTTPException as exc:
                 errors.append(f"Could not upload {clip_label.lower()}: {exc}")
             finally:
-                cleanup_clip_artifacts(output_path)
+                cleanup_carousel_artifacts(recipe.job_dir)
 
         if external_links:
             await thread.send(
@@ -282,23 +286,23 @@ async def _generate_clips_for_user(
 
         if created == len(pending) and created == count:
             await thread.send(
-                f"✅ All **{created}** clip{'s' if created != 1 else ''} are ready."
+                f"✅ All **{created}** carousel{'s' if created != 1 else ''} are ready."
             )
         elif created == 1:
-            await thread.send("✅ Clip ready — check the video above.")
+            await thread.send("✅ Carousel ready — 4 slides above.")
         elif created > 1:
-            await thread.send(f"✅ **{created}** clips are ready.")
+            await thread.send(f"✅ **{created}** carousels are ready.")
 
     if count > 1 and 0 < created < count:
-        errors.insert(0, f"Only **{created}/{count}** clips were delivered.")
+        errors.insert(0, f"Only **{created}/{count}** carousels were delivered.")
 
     if external_links and not errors:
         try:
             await progress_message.edit(
                 embed=discord.Embed(
                     description=(
-                        f"✅ **Batch complete — {created}/{count} videos**\n"
-                        f"Some clips are external links in {thread.mention}."
+                        f"✅ **Batch complete — {created}/{count} carousels**\n"
+                        f"Some slides are external links in {thread.mention}."
                     ),
                     color=CONTENT_COLOR,
                 )
@@ -382,7 +386,7 @@ async def _handle_clip_request(
         )
     except discord.HTTPException as exc:
         await interaction.followup.send(
-            f"Could not create your clips thread: {exc}",
+            f"Could not create your carousel thread: {exc}",
             ephemeral=True,
         )
         return
@@ -410,7 +414,7 @@ async def _handle_clip_request(
 
 class BatchGenerateModal(discord.ui.Modal, title="Batch Generate"):
     video_count = discord.ui.TextInput(
-        label="How many videos? (max 5)",
+        label="How many carousels? (max 5)",
         placeholder="1",
         default="1",
         required=True,
