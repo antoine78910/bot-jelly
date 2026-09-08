@@ -2,7 +2,7 @@
 # ! = white box / black text.  !!segment = white text on pink.
 # {{a|b|c}} = pick one at random (~10–20% wording variation).
 # # style: routine|etape  → keeps slides 2–4 coherent (same family).
-# Sections: === hooks === (1)  === method === (2)  === hirly === (3)  === recap === (4)
+# Sections: === hooks === (1)  === method === (2)  === jellyjob === (3)  === recap === (4)
 # Refs: assets/references/hooks/  assets/references/method/
 
 === hooks ===
@@ -55,13 +55,13 @@ Pour l'instant j'ai|enregistré tous les jobs|intéressants publiés sur|le net 
 !C'est un agregateur qui|{{réuni|regroupe}} {{quasi la totalité|presque toutes}} des|offres d'emplois|d'internet au même|endroit
 !(Oublie pas d'utiliser le|filtre "{{dernières 24h|24 dernières heures}}" pour|voir {{que|seulement}} les offres|{{fraîches|du jour}})
 
-=== hirly ===
+=== jellyjob ===
 
 # style: routine
 # Style ref: cvgood_8h10 — continuum 8h10→8h15 après Google
 Ensuite|De {{8h10 à 8h15|8h10 à 8h20}}
 Je {{me rends sur|vais sur}}
-!Hirly
+!Jellyjob
 Je colle l'URL {{Google Jobs|Google Emploi}}|d'une offre qui me {{plaît|convient}} —|il me trouve {{des centaines|plein}}|d'offres {{similaires|du même style}}
 {{J'upload|Je dépose}} mon CV : mots-clés ATS|{{par offre|pour chaque annonce}},|swipe droite = postuler /|gauche = passer
 !(Je suis tout dans l'inbox|{{si interview|si entretien}})
@@ -72,7 +72,7 @@ Je colle l'URL {{Google Jobs|Google Emploi}}|d'une offre qui me {{plaît|convien
 # Style ref: cvgood_8h10_v2
 Ensuite de {{8h10 à 8h15|8h10 à 8h20}}
 Je {{vais sur|me rends sur}}
-!Hirly
+!Jellyjob
 Je me fais matcher {{des centaines|énormément}}|d'offres {{similaires|comparables}} à|celle de Google Jobs
 Upload du CV (ATS {{optimisé|adapté}}|à {{chaque offre|chaque post}}),|puis je swipe pour postuler
 !(Inbox = suivi candidatures|{{+ interviews|+ entretiens}})
@@ -83,7 +83,7 @@ Upload du CV (ATS {{optimisé|adapté}}|à {{chaque offre|chaque post}}),|puis j
 # Style ref: etape2_cvgood.png — blanc dominant, rose = produit
 !#étape 2#
 !Colle l'URL {{Google Jobs|Google Emploi}}|d'une offre qui te {{plaît|convient}} sur
-Hirly
+Jellyjob
 !Il te trouve {{des centaines|plein}}|d'offres {{similaires|du même style}}
 !{{Upload|Envoie}} ton CV (mots-clés ATS|{{adaptés|optimisés}} à {{chaque offre|l'annonce}})
 !(Swipe droite = postuler,|gauche = passer — suit tout|dans l'inbox {{si interview|si tu as un entretien}})
@@ -92,8 +92,8 @@ Hirly
 
 # style: etape
 !#étape 2#
-!Sur Hirly, colle le lien|d'un post Google Jobs
-Hirly
+!Sur Jellyjob, colle le lien|d'un post Google Jobs
+Jellyjob
 !Le site te sort {{des centaines|énormément}}|de posts {{similaires|comparables}}
 !Upload ton CV : il {{reprend|injecte}}|les mots-clés ATS {{par offre|pour chaque annonce}}
 !(Swipe pour postuler / skip,|puis suis tes candidatures|{{via l'inbox|dans ton inbox}})
@@ -103,7 +103,7 @@ Hirly
 # style: etape
 !#étape 2#
 !Prends une offre qui te|va sur Google Jobs, colle|l'URL sur
-Hirly
+Jellyjob
 !Tu obtiens {{des centaines|une tonne}} d'offres|similaires en {{un instant|quelques secondes}}
 !Upload ton CV {{optimisé ATS|avec les bons mots-clés}},|swipe à droite pour|postuler
 !(Inbox = suivi des|candidatures {{+ interviews|+ entretiens}})
@@ -138,6 +138,6 @@ C'est aussi simple que ça|d'{{optimiser|maximiser}} {{ces|tes}} chances|{{au ma
 
 # style: etape
 !#récap#
-!Tu as la méthode :|Google Jobs → Hirly →|candidatures {{fraîches|du jour}}
+!Tu as la méthode :|Google Jobs → Jellyjob →|candidatures {{fraîches|du jour}}
 !Une offre récente + un CV|{{dédié|optimisé ATS}} =|{{beaucoup|énormément}} plus de|chances d'être rappelé
 !Aussi simple que ça 🤨

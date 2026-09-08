@@ -63,7 +63,7 @@ def panel_embed() -> discord.Embed:
         title="🎬 Content Generator",
         description=(
             "Click a button below to generate a unique 4-slide carousel "
-            "(hook, Google, Hirly, recap).\n\n"
+            "(hook, Google, Jellyjob, recap).\n\n"
             "**Generate Content** — 1 carousel\n"
             "**Batch Generate** — up to 5 carousels (different hooks, body, CTA & photos)\n\n"
             "Each export randomizes captions, avatar, lifestyle photos, and one visual effect."

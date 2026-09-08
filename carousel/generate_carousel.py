@@ -785,23 +785,23 @@ def _pick_paired_slides() -> tuple[
 ]:
     """
     Pick one coherent style for slides 2–4:
-      routine → Google 8h00–8h10 + Hirly 8h10–8h15 + recap 8h15–8h20
+      routine → Google 8h00–8h10 + Jellyjob 8h10–8h15 + recap 8h15–8h20
       etape   → #étape 1# + #étape 2# + récap blanc
     """
     method_by = _blocks_by_style("method")
-    hirly_by = _blocks_by_style("hirly")
+    jellyjob_by = _blocks_by_style("jellyjob")
     recap_by = _blocks_by_style("recap")
     styles = [
         s for s in ("routine", "etape")
-        if method_by.get(s) and hirly_by.get(s) and recap_by.get(s)
+        if method_by.get(s) and jellyjob_by.get(s) and recap_by.get(s)
     ]
     if not styles:
         styles = [s for s in method_by if method_by[s]] or ["routine"]
     style = random.choice(styles)
     method = _pick_caption_set("method", style=style)
-    hirly = _pick_caption_set("hirly", style=style)
+    jellyjob = _pick_caption_set("jellyjob", style=style)
     recap = _pick_caption_set("recap", style=style)
-    return style, method, hirly, recap
+    return style, method, jellyjob, recap
 
 
 def _pick_font_size(text: str) -> int:
@@ -1004,7 +1004,7 @@ def generate_type1_carousel(
     set_index: int = 0,
     caption_lines: list[tuple[str, bool]] | None = None,
     method_lines: list[tuple[str, bool]] | None = None,
-    hirly_lines: list[tuple[str, bool]] | None = None,
+    jellyjob_lines: list[tuple[str, bool]] | None = None,
     recap_lines: list[tuple[str, bool]] | None = None,
     avatar_pack: str = DEFAULT_AVATAR_PACK,
     photo_pack: str | None = DEFAULT_PHOTO_PACK,
@@ -1016,7 +1016,7 @@ def generate_type1_carousel(
     Type 1 (strict):
       slide 1 = AVATAR + hook
       slide 2 = STYLE + Google (routine OR etape)
-      slide 3 = STYLE + Hirly (same style)
+      slide 3 = STYLE + Jellyjob (same style)
       slide 4 = STYLE + recap (same style)
     """
     dest = Path(output_dir) if output_dir is not None else OUTPUT_DIR
@@ -1036,12 +1036,12 @@ def generate_type1_carousel(
 
     if caption_lines is None:
         caption_lines = _pick_caption_set("hooks")
-    if method_lines is None or hirly_lines is None or recap_lines is None:
-        pair_style, paired_method, paired_hirly, paired_recap = _pick_paired_slides()
+    if method_lines is None or jellyjob_lines is None or recap_lines is None:
+        pair_style, paired_method, paired_jellyjob, paired_recap = _pick_paired_slides()
         if method_lines is None:
             method_lines = paired_method
-        if hirly_lines is None:
-            hirly_lines = paired_hirly
+        if jellyjob_lines is None:
+            jellyjob_lines = paired_jellyjob
         if recap_lines is None:
             recap_lines = paired_recap
     else:
@@ -1075,8 +1075,8 @@ def generate_type1_carousel(
         pool.extend(photos[:])
     picks = pool[:TYPE1_LIFESTYLE_COUNT]
 
-    texts = (method_lines, hirly_lines, recap_lines)
-    labels = ("GOOGLE", "HIRLY", "RECAP")
+    texts = (method_lines, jellyjob_lines, recap_lines)
+    labels = ("GOOGLE", "JELLYJOB", "RECAP")
     for i, (pick, text, label) in enumerate(zip(picks, texts, labels)):
         bg = _load_cover_augmented(pick, CANVAS_W, CANVAS_H, aug, seed_base + 1 + i)
         slide = render_slide_with_text(bg, text, style)
@@ -1097,7 +1097,7 @@ def generate_type1_carousel(
 
 
 def run_test(color: str = DEFAULT_COLOR) -> Path:
-    """Black 9:16 previews: hook + paired routine & etape (Google + Hirly + recap)."""
+    """Black 9:16 previews: hook + paired routine & etape (Google + Jellyjob + recap)."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     style = TIKTOK_STYLE.get(color, TIKTOK_STYLE[DEFAULT_COLOR])
     bg = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
@@ -1110,7 +1110,7 @@ def run_test(color: str = DEFAULT_COLOR) -> Path:
 
     for pair_style, seed in (("routine", 43), ("etape", 44)):
         random.seed(seed)
-        for role in ("method", "hirly", "recap"):
+        for role in ("method", "jellyjob", "recap"):
             lines = _pick_caption_set(role, style=pair_style)
             img = render_slide_with_text(bg.copy(), lines, style)
             out = OUTPUT_DIR / f"test_{role}_{pair_style}.png"
@@ -1193,7 +1193,7 @@ def main():
     photo_packs = _list_photo_packs()
 
     print(f"Generating {args.sets} type-1 carousel(s) — 4 slides — {args.color}")
-    print(f"  Slide 1 = AVATAR + hook  |  2 = Google  |  3 = Hirly  |  4 = Recap")
+    print(f"  Slide 1 = AVATAR + hook  |  2 = Google  |  3 = Jellyjob  |  4 = Recap")
     print(f"  Avatar pack: {args.avatar} → {avatar_dir}")
     print(f"  Avatars: {len(avatars)} files")
     photo_label = args.photos or "all packs"

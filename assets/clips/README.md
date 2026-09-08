@@ -51,4 +51,4 @@ assets/clips/
 ## Discord
 
 Discord **Generate Content** now builds 4-slide carousels from `carousel/`
-(hook + Google + Hirly + recap), not these video clips.
+(hook + Google + Jellyjob + recap), not these video clips.
