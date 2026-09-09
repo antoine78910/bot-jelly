@@ -59,6 +59,12 @@ def main() -> int:
                 elif not st["captions"]:
                     errors.append(f"{label}: missing carousel/carousel_captions.txt")
                 print(f"OK   {label} (content generator — {clip_note})")
+            elif template_name == "music":
+                from music import music_panel_fingerprint, panel_embed
+
+                panel_embed()
+                music_panel_fingerprint()
+                print(f"OK   {label} (music panel)")
             else:
                 template = get_template(template_name)
                 if not template:

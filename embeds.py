@@ -14,6 +14,8 @@ CHANNEL_LABELS = {
     "content_bot": "#🎬-content-bot",
     "dm_automation": "#📩-dm-automation",
     "payout_submission": "#💳-payout-submission",
+    "payout_proofs": "#💰-payment-proof",
+    "music": "#🎵-sounds",
 }
 
 

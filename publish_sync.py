@@ -82,6 +82,11 @@ def _raw_fingerprint(template_name: str) -> str:
 
         return content_generator_panel_fingerprint()
 
+    if template_name == "music":
+        from music import music_panel_fingerprint
+
+        return music_panel_fingerprint()
+
     raise ValueError(f"Unknown template for fingerprint: {template_name}")
 
 

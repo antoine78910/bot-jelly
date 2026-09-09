@@ -13,7 +13,8 @@
     "content_bot": "1546460102234607687",
     "dm_automation": "1546460072681668668",
     "payout_submission": "1546460130470527017",
-    "payout_proofs": "1546459879462408252"
+    "payout_proofs": "1546459879462408252",
+    "music": "1547172164657094719"
   },
   "channels": {
     "1546459228125012051": "start_here",
@@ -24,6 +25,7 @@
     "1546459810378162186": "registration_welcome",
     "1546460130470527017": "payout_submission_welcome",
     "1546459879462408252": "payout_proofs",
-    "1546460102234607687": "content_generator_welcome"
+    "1546460102234607687": "content_generator_welcome",
+    "1547172164657094719": "music"
   }
 }

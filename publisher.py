@@ -31,6 +31,7 @@ def _load_special_publishers() -> dict:
         CONTENT_GENERATOR_TEMPLATE,
         publish_content_generator_welcome,
     )
+    from music import MUSIC_TEMPLATE, publish_music_panel
     from payout_proofs import PAYOUT_PROOFS_TEMPLATE, publish_payout_proofs
     from payout_submission import (
         PAYOUT_SUBMISSION_TEMPLATE,
@@ -43,6 +44,7 @@ def _load_special_publishers() -> dict:
         PAYOUT_SUBMISSION_TEMPLATE: publish_payout_submission_welcome,
         PAYOUT_PROOFS_TEMPLATE: publish_payout_proofs,
         CONTENT_GENERATOR_TEMPLATE: publish_content_generator_welcome,
+        MUSIC_TEMPLATE: publish_music_panel,
     }
 
 
