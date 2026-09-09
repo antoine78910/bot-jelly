@@ -37,12 +37,12 @@ def _ticket_category_id() -> int | None:
 
 def submission_embed() -> discord.Embed:
     return discord.Embed(
-        title="💰 Payout Submission",
+        title="💰 Demande de paiement",
         description=(
-            "Submit your account analytics by clicking the button below.\n\n"
-            "A private ticket channel will open just between you and the admins. "
-            "Drop your view counts, video links, and screenshots there — "
-            "payouts process within 48 hours."
+            "Envoie tes stats de compte en cliquant sur le bouton ci-dessous.\n\n"
+            "Un salon ticket privé s’ouvre entre toi et les admins. "
+            "Dépose-y tes vues, tes liens de posts et tes captures — "
+            "les paiements sont traités sous 48 heures."
         ),
         color=EMBED_COLOR,
     )
@@ -50,16 +50,16 @@ def submission_embed() -> discord.Embed:
 
 def ticket_embed(user: discord.Member | discord.User, ticket_id: str) -> discord.Embed:
     embed = discord.Embed(
-        title="💸 Payout Submission",
+        title="💸 Demande de paiement",
         description=(
-            f"Hey {user.mention} — welcome to your payout ticket.\n\n"
-            "**Please reply in this channel with:**\n"
-            "1. Your Instagram handle (UGC account)\n"
-            "2. Period covered (e.g. May 1–15, 2026)\n"
-            "3. Total views generated across all posts\n"
-            "4. Screen recording of your account analytics\n\n"
-            "We'll verify and process within **48 hours**. "
-            "You'll get a DM the moment your payout is sent."
+            f"Salut {user.mention} — voici ton ticket de paiement.\n\n"
+            "**Réponds dans ce salon avec :**\n"
+            "1. Ton pseudo Instagram (compte posting)\n"
+            "2. La période couverte (ex. 1–15 mai 2026)\n"
+            "3. Le total de vues sur tous tes posts\n"
+            "4. Un enregistrement d’écran de tes analytics\n\n"
+            "On vérifie et on traite sous **48 heures**. "
+            "Tu recevras un DM dès que le paiement est envoyé."
         ),
         color=EMBED_COLOR,
     )
@@ -163,7 +163,7 @@ class PayoutTicketView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="Mark Paid & Close",
+        label="Marquer payé et fermer",
         style=discord.ButtonStyle.success,
         emoji="✅",
         custom_id="jelly_payout_mark_paid",
@@ -181,7 +181,7 @@ class PayoutTicketView(discord.ui.View):
             interaction.user, channel
         ):
             await interaction.response.send_message(
-                "You don't have permission to manage this ticket.",
+                "Tu n’as pas la permission de gérer ce ticket.",
                 ephemeral=True,
             )
             return
@@ -190,16 +190,16 @@ class PayoutTicketView(discord.ui.View):
         if opener:
             try:
                 await opener.send(
-                    "✅ Your payout has been processed and sent. Thanks for clipping with **Jelly**!"
+                    "✅ Ton paiement a été traité et envoyé. Merci de poster avec **Jelly** !"
                 )
             except discord.HTTPException:
                 pass
 
-        await interaction.response.send_message("Ticket marked as paid. Closing…", ephemeral=True)
+        await interaction.response.send_message("Ticket marqué comme payé. Fermeture…", ephemeral=True)
         await channel.delete(reason=f"Paid & closed by {interaction.user}")
 
     @discord.ui.button(
-        label="Close Ticket",
+        label="Fermer le ticket",
         style=discord.ButtonStyle.danger,
         emoji="🔒",
         custom_id="jelly_payout_close",
@@ -217,12 +217,12 @@ class PayoutTicketView(discord.ui.View):
             interaction.user, channel
         ):
             await interaction.response.send_message(
-                "You don't have permission to manage this ticket.",
+                "Tu n’as pas la permission de gérer ce ticket.",
                 ephemeral=True,
             )
             return
 
-        await interaction.response.send_message("Closing ticket…", ephemeral=True)
+        await interaction.response.send_message("Fermeture du ticket…", ephemeral=True)
         await channel.delete(reason=f"Closed by {interaction.user}")
 
 
@@ -239,7 +239,7 @@ class PayoutSubmitView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="Submit Payout",
+        label="Demander un paiement",
         style=discord.ButtonStyle.success,
         emoji="💸",
         custom_id="jelly_payout_submit",
@@ -251,7 +251,7 @@ class PayoutSubmitView(discord.ui.View):
     ) -> None:
         if interaction.guild is None:
             await interaction.response.send_message(
-                "This button only works in a server.",
+                "Ce bouton fonctionne uniquement sur un serveur.",
                 ephemeral=True,
             )
             return
@@ -259,7 +259,7 @@ class PayoutSubmitView(discord.ui.View):
         existing = _find_open_ticket(interaction.guild, interaction.user)
         if existing:
             await interaction.response.send_message(
-                f"✅ Your payout ticket is ready: {existing.mention}",
+                f"✅ Ton ticket de paiement est prêt : {existing.mention}",
                 ephemeral=True,
             )
             return
@@ -270,7 +270,7 @@ class PayoutSubmitView(discord.ui.View):
             ticket_channel = await _create_ticket_channel(interaction)
         except discord.HTTPException as exc:
             await interaction.followup.send(
-                f"Could not create your ticket: {exc}",
+                f"Impossible de créer ton ticket : {exc}",
                 ephemeral=True,
             )
             return
@@ -284,7 +284,7 @@ class PayoutSubmitView(discord.ui.View):
         )
 
         await interaction.followup.send(
-            f"✅ Your payout ticket is ready: {ticket_channel.mention}",
+            f"✅ Ton ticket de paiement est prêt : {ticket_channel.mention}",
             ephemeral=True,
         )
 

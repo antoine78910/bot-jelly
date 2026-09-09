@@ -13,7 +13,7 @@ from embeds import get_template
 
 STATE_PATH = Path(__file__).parent / "publish_state.json"
 # Bump when publish/skip logic changes so all channels resync once.
-SYNC_VERSION = 4
+SYNC_VERSION = 5
 
 
 def _hash_payload(payload: object) -> str:

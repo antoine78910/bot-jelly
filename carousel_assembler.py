@@ -30,8 +30,8 @@ class CarouselRecipe:
 def recipe_summary(recipe: CarouselRecipe) -> str:
     photos = ", ".join(f"`{name}`" for name in recipe.photo_names) or "—"
     return (
-        f"Hook: {recipe.hook_preview}\n"
-        f"Style `{recipe.pair_style}` · augment `{recipe.augment}` · `{recipe.color}`\n"
+        f"Accroche : {recipe.hook_preview}\n"
+        f"Style `{recipe.pair_style}` · effet `{recipe.augment}` · `{recipe.color}`\n"
         f"Avatar `{recipe.avatar_name}` · photos {photos}"
     )
 
@@ -66,13 +66,13 @@ def assemble_carousel(*, seed: int, color: str = "pink") -> CarouselRecipe:
     status = assets_status()
     if status["avatars"] < 1 or status["photos"] < 1:
         raise CarouselAssemblyError(
-            "Missing carousel assets. Add files to `carousel/assets/avatars` and "
-            f"`carousel/assets/photos` on the bot machine (checked: `{status['root']}` — "
+            "Assets carrousel manquants. Ajoute des fichiers dans `carousel/assets/avatars` et "
+            f"`carousel/assets/photos` sur la machine du bot (vérifié : `{status['root']}` — "
             f"avatars={status['avatars']}, photos={status['photos']})."
         )
     if not status["captions"]:
         raise CarouselAssemblyError(
-            f"Missing captions file: `{status['root']}/carousel_captions.txt`."
+            f"Fichier de légendes manquant : `{status['root']}/carousel_captions.txt`."
         )
 
     theme = color if color in TIKTOK_STYLE else DEFAULT_COLOR
@@ -92,12 +92,12 @@ def assemble_carousel(*, seed: int, color: str = "pink") -> CarouselRecipe:
         raise CarouselAssemblyError(str(exc)) from exc
     except Exception as exc:
         shutil.rmtree(job_dir, ignore_errors=True)
-        raise CarouselAssemblyError(f"Carousel render failed: {exc}") from exc
+        raise CarouselAssemblyError(f"Rendu du carrousel échoué : {exc}") from exc
 
     slides = list(build.slides)
     if len(slides) < 4:
         shutil.rmtree(job_dir, ignore_errors=True)
-        raise CarouselAssemblyError("Carousel render produced fewer than 4 slides.")
+        raise CarouselAssemblyError("Le rendu a produit moins de 4 slides.")
 
     return CarouselRecipe(
         pair_style=build.pair_style,

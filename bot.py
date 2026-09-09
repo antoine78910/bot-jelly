@@ -103,8 +103,8 @@ async def refresh(ctx: commands.Context, template_name: str | None = None):
 
     if not name:
         await ctx.send(
-            "No template for this channel. Add the ID in `channel_config.json` "
-            "or run: `!refresh account_setup`"
+            "Aucun template pour ce salon. Ajoute l’ID dans `channel_config.json` "
+            "ou lance : `!refresh account_setup`"
         )
         return
 
@@ -112,13 +112,13 @@ async def refresh(ctx: commands.Context, template_name: str | None = None):
 
     known = set(MESSAGE_TEMPLATES) | set(_load_special_publishers())
     if name not in known:
-        await ctx.send(f"Template `{name}` not found.")
+        await ctx.send(f"Template `{name}` introuvable.")
         return
 
     try:
         updated = await publish_channel(ctx.channel, name, bot.user, force=force)
     except Exception as exc:
-        await ctx.send(f"Publish failed: {exc}", delete_after=10)
+        await ctx.send(f"Publication échouée : {exc}", delete_after=10)
         return
 
     try:
@@ -128,7 +128,7 @@ async def refresh(ctx: commands.Context, template_name: str | None = None):
 
     if not updated:
         await ctx.send(
-            "No changes detected. Use `!refresh force` or `!fixchannels` (admin) to repost.",
+            "Aucun changement. Utilise `!refresh force` ou `!fixchannels` (admin) pour republier.",
             delete_after=6,
         )
         return
@@ -147,7 +147,7 @@ async def refresh_all(ctx: commands.Context):
     for channel_id, template_name in mapping.items():
         channel = bot.get_channel(int(channel_id))
         if channel is None:
-            errors.append(f"<#{channel_id}>: channel not found")
+            errors.append(f"<#{channel_id}> : salon introuvable")
             continue
         try:
             if await publish_channel(channel, template_name, bot.user, force=force):
@@ -157,9 +157,9 @@ async def refresh_all(ctx: commands.Context):
         except Exception as exc:
             errors.append(f"<#{channel_id}> (`{template_name}`): {exc}")
 
-    summary = f"Done — {updated_count} updated, {skipped_count} unchanged."
+    summary = f"Terminé — {updated_count} mis à jour, {skipped_count} inchangés."
     if errors:
-        summary += "\n\n**Errors:**\n" + "\n".join(errors[:8])
+        summary += "\n\n**Erreurs :**\n" + "\n".join(errors[:8])
     await ctx.send(summary, delete_after=15 if errors else 6)
 
 
@@ -177,7 +177,7 @@ async def fix_channels(ctx: commands.Context):
     for channel_id, template_name in mapping.items():
         channel = bot.get_channel(int(channel_id))
         if channel is None:
-            errors.append(f"<#{channel_id}>: not found")
+            errors.append(f"<#{channel_id}> : introuvable")
             continue
         try:
             await publish_channel(channel, template_name, bot.user, force=True)
@@ -185,7 +185,7 @@ async def fix_channels(ctx: commands.Context):
         except Exception as exc:
             errors.append(f"<#{channel_id}>: {exc}")
 
-    msg = f"Reposted **{updated}** channel(s)."
+    msg = f"**{updated}** salon(s) republié(s)."
     if errors:
         msg += "\n" + "\n".join(errors[:8])
     await ctx.send(msg, delete_after=12)

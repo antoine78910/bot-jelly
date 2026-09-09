@@ -31,43 +31,43 @@ def _log_channel_id() -> int:
 
 def welcome_embed() -> discord.Embed:
     return discord.Embed(
-        title="🚀 Welcome to the Jelly Clipping Campaign",
+        title="🚀 Bienvenue dans la campagne Jelly Posting",
         description=(
-            "Click the button below to begin your registration.\n\n"
-            "**You'll be asked for:**\n"
-            "• Instagram username\n"
-            "• Phone Number\n"
-            "• Payout method (PayPal / Crypto / Bank Transfer)\n"
-            "• Payout details\n\n"
-            "Once you register, you're officially in the campaign — "
-            "start clipping, posting, and earning right away."
+            "Clique sur le bouton ci-dessous pour t’inscrire.\n\n"
+            "**On te demandera :**\n"
+            "• Ton pseudo Instagram\n"
+            "• Ton numéro de téléphone\n"
+            "• Ta méthode de paiement (PayPal / Crypto / Virement)\n"
+            "• Tes infos de paiement\n\n"
+            "Une fois inscrit, tu es dans la campagne — "
+            "tu peux poster et commencer à être payé."
         ),
         color=EMBED_COLOR,
     )
 
 
-class RegistrationModal(discord.ui.Modal, title="Jelly Clipping Registration"):
+class RegistrationModal(discord.ui.Modal, title="Inscription Jelly Posting"):
     instagram = discord.ui.TextInput(
-        label="Instagram Username (Clipping Account)",
-        placeholder="@yourhandle",
+        label="Pseudo Instagram (compte posting)",
+        placeholder="@toncompte",
         required=True,
         max_length=100,
     )
     phone = discord.ui.TextInput(
-        label="Phone Number",
-        placeholder="+1 555 555 5555",
+        label="Numéro de téléphone",
+        placeholder="+33 6 12 34 56 78",
         required=True,
         max_length=30,
     )
     payout_method = discord.ui.TextInput(
-        label="Payout Method",
-        placeholder="PayPal / Crypto / Bank Transfer",
+        label="Méthode de paiement",
+        placeholder="PayPal / Crypto / Virement",
         required=True,
         max_length=100,
     )
     payout_details = discord.ui.TextInput(
-        label="Payout Details (email / wallet / bank)",
-        placeholder="your@email.com / wallet address / IBAN...",
+        label="Infos de paiement (email / wallet / IBAN)",
+        placeholder="ton@email.com / adresse wallet / IBAN…",
         style=discord.TextStyle.paragraph,
         required=True,
         max_length=1000,
@@ -75,23 +75,23 @@ class RegistrationModal(discord.ui.Modal, title="Jelly Clipping Registration"):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         embed = discord.Embed(
-            title="New register",
-            description=f"**Discord:** {interaction.user.mention} (`{interaction.user.id}`)",
+            title="Nouvelle inscription",
+            description=f"**Discord :** {interaction.user.mention} (`{interaction.user.id}`)",
             color=EMBED_COLOR,
         )
         embed.add_field(
-            name="Instagram Username",
+            name="Pseudo Instagram",
             value=self.instagram.value or "—",
             inline=False,
         )
-        embed.add_field(name="Phone Number", value=self.phone.value or "—", inline=False)
-        embed.add_field(name="Payout Method", value=self.payout_method.value or "—", inline=False)
+        embed.add_field(name="Téléphone", value=self.phone.value or "—", inline=False)
+        embed.add_field(name="Méthode de paiement", value=self.payout_method.value or "—", inline=False)
         embed.add_field(
-            name="Payout Details",
+            name="Infos de paiement",
             value=self.payout_details.value or "—",
             inline=False,
         )
-        embed.set_footer(text="Jelly Clipping Registration")
+        embed.set_footer(text="Inscription Jelly Posting")
         embed.timestamp = discord.utils.utcnow()
 
         log_channel = interaction.client.get_channel(_log_channel_id()) if interaction.client else None
@@ -100,8 +100,8 @@ class RegistrationModal(discord.ui.Modal, title="Jelly Clipping Registration"):
             await log_channel.send(content=ping or None, embed=embed)
 
         confirm = discord.Embed(
-            title="✅ Registration complete",
-            description="You're officially in the **Jelly** Clipping campaign.",
+            title="✅ Inscription terminée",
+            description="Tu es officiellement dans la campagne **Jelly Posting**.",
             color=EMBED_COLOR,
         )
         await interaction.response.send_message(embed=confirm, ephemeral=True)
@@ -112,7 +112,7 @@ class RegisterView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="Register",
+        label="S’inscrire",
         style=discord.ButtonStyle.primary,
         custom_id="jelly_clipping_register",
     )

@@ -81,16 +81,16 @@ async def log_member_join(client: discord.Client, member: discord.Member) -> Non
     member_count = guild.member_count or len(guild.members)
 
     embed = discord.Embed(
-        title="New member joined",
-        description=f"{member.mention} joined the server.",
+        title="Nouveau membre",
+        description=f"{member.mention} a rejoint le serveur.",
         color=JOIN_COLOR,
     )
-    embed.add_field(name="User", value=f"{member} (`{member.id}`)", inline=True)
-    embed.add_field(name="Account created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
-    embed.add_field(name="Member count", value=str(member_count), inline=True)
+    embed.add_field(name="Utilisateur", value=f"{member} (`{member.id}`)", inline=True)
+    embed.add_field(name="Compte créé", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
+    embed.add_field(name="Membres", value=str(member_count), inline=True)
     if member.display_avatar:
         embed.set_thumbnail(url=member.display_avatar.url)
-    embed.set_footer(text="Discord join feed")
+    embed.set_footer(text="Feed arrivées Discord")
     embed.timestamp = discord.utils.utcnow()
 
     ping = notify_role_mention()
@@ -114,28 +114,28 @@ async def log_content_generation(
     if channel is None:
         return
 
-    mode_label = "Batch generate" if mode == "batch" else "Generate content"
+    mode_label = "Générer un lot" if mode == "batch" else "Générer du contenu"
     embed = discord.Embed(
-        title="Content generated",
+        title="Contenu généré",
         description=(
-            f"{member.mention} generated **{created}/{requested}** carousel"
+            f"{member.mention} a généré **{created}/{requested}** carrousel"
             f"{'s' if requested != 1 else ''} via **{mode_label}**.\n"
-            f"Private thread: {thread.mention}"
+            f"Fil privé : {thread.mention}"
         ),
         color=CONTENT_COLOR,
     )
-    embed.add_field(name="User", value=f"{member} (`{member.id}`)", inline=True)
+    embed.add_field(name="Utilisateur", value=f"{member} (`{member.id}`)", inline=True)
     embed.add_field(name="Mode", value=mode_label, inline=True)
-    embed.add_field(name="Thread", value=thread.mention, inline=True)
+    embed.add_field(name="Fil", value=thread.mention, inline=True)
 
     for output in outputs[:5]:
-        delivery = "Discord upload"
+        delivery = "Upload Discord"
         if output.delivery_mode == "external" and output.url:
-            delivery = f"[External link]({output.url}) (72h)"
-        value = f"{output.summary}\n**Delivery:** {delivery}"
+            delivery = f"[Lien externe]({output.url}) (72h)"
+        value = f"{output.summary}\n**Livraison :** {delivery}"
         embed.add_field(name=output.label, value=value[:1024], inline=False)
 
-    embed.set_footer(text="Content generator feed")
+    embed.set_footer(text="Feed générateur de contenu")
     embed.timestamp = discord.utils.utcnow()
 
     ping = notify_role_mention()

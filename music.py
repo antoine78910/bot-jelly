@@ -1,4 +1,4 @@
-"""Approved TikTok sounds panel for clippers."""
+"""Approved TikTok sounds panel for posters."""
 
 from __future__ import annotations
 
@@ -44,16 +44,19 @@ def panel_embed() -> discord.Embed:
         for index, item in enumerate(ALT_SOUNDS, start=1)
     )
     return discord.Embed(
-        title="🎵 Sounds to use",
+        title="🎵 Sons à utiliser",
         description=(
-            "Use these TikTok sounds on your videos.\n\n"
-            "**Main sound — at least 3 out of 4 videos**\n"
+            "Utilise ces sons TikTok sur tes carrousels.\n\n"
+            "⭐ **Astuce :** ajoute **tous ces sons en favoris** sur TikTok. "
+            "Tu les retrouveras ensuite en 1 clic au moment de poster le carrousel "
+            "(favoris → sons).\n\n"
+            "**Son principal — au moins 3 posts sur 4**\n"
             f"**{MAIN_SOUND['label']}**\n"
             f"{MAIN_SOUND['url']}\n\n"
-            "This is the default. Only switch when you need a change.\n\n"
-            "**Alternatives — rotate the remaining video**\n"
+            "C’est le son par défaut. Change seulement si tu as besoin de varier.\n\n"
+            "**Alternatives — pour le post restant**\n"
             f"{alt_lines}\n\n"
-            "Tap the buttons below to open the sound in TikTok."
+            "Appuie sur les boutons ci-dessous pour ouvrir le son dans TikTok."
         ),
         color=MUSIC_COLOR,
     )
@@ -64,7 +67,7 @@ class MusicLinksView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(
             discord.ui.Button(
-                label="Main sound (use 3/4)",
+                label="Son principal (3/4)",
                 style=discord.ButtonStyle.link,
                 url=MAIN_SOUND["url"],
                 emoji="⭐",

@@ -99,14 +99,14 @@ async def deliver_clip_to_thread(
 
     url = await upload_to_external_host(emergency)
     await thread.send(
-        f"{member.mention} 🎬 **{clip_label}** — too large for Discord, "
-        f"download here (link valid **{EXTERNAL_LINK_TTL}**):\n{url}",
+        f"{member.mention} 🎬 **{clip_label}** — trop lourd pour Discord, "
+        f"télécharge ici (lien valable **{EXTERNAL_LINK_TTL}**) :\n{url}",
         suppress_embeds=True,
     )
     return "external", url
 
 
-SLIDE_LABELS = ("Hook", "Google", "Jellyjob", "Recap")
+SLIDE_LABELS = ("Accroche", "Google", "Jellyjob", "Récap")
 
 
 def _slide_filename(index: int, label: str) -> str:
@@ -119,7 +119,7 @@ def _download_view(items: list[tuple[str, str]]) -> discord.ui.View:
     for label, url in items[:5]:
         view.add_item(
             discord.ui.Button(
-                label=f"Download {label}",
+                label=f"Télécharger {label}",
                 style=discord.ButtonStyle.link,
                 url=url,
                 emoji="⬇️",
@@ -150,8 +150,8 @@ async def _send_slide_image(
 
     url = await upload_to_external_host(path)
     await thread.send(
-        f"{caption} — too large for Discord, download here "
-        f"(link valid **{EXTERNAL_LINK_TTL}**):\n{url}",
+        f"{caption} — trop lourd pour Discord, télécharge ici "
+        f"(lien valable **{EXTERNAL_LINK_TTL}**) :\n{url}",
         suppress_embeds=True,
     )
     return "external", url
@@ -168,11 +168,11 @@ async def deliver_carousel_to_thread(
     Send each slide as its own image (native Discord download), plus Download buttons.
     """
     if len(slides) < 1:
-        raise CarouselAssemblyError("No carousel slides to upload.")
+        raise CarouselAssemblyError("Aucune slide de carrousel à envoyer.")
 
     missing = [str(path) for path in slides if not path.is_file()]
     if missing:
-        raise CarouselAssemblyError(f"Carousel files missing: {', '.join(missing)}")
+        raise CarouselAssemblyError(f"Fichiers carrousel manquants : {', '.join(missing)}")
 
     await thread.send(f"{member.mention} 🎠 **{clip_label}**")
 
@@ -195,12 +195,12 @@ async def deliver_carousel_to_thread(
 
     if download_items:
         await thread.send(
-            "⬇️ **Tap to download each slide**",
+            "⬇️ **Appuie pour télécharger chaque slide**",
             view=_download_view(download_items),
         )
 
     if not download_items:
-        raise CarouselAssemblyError("Could not upload any carousel slides.")
+        raise CarouselAssemblyError("Impossible d’envoyer les slides du carrousel.")
 
     return ("external" if used_external else "discord"), download_items[0][1]
 
