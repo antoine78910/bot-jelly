@@ -79,8 +79,8 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
         description=(
             f"Hey {user.mention} — welcome to your private clips thread.\n\n"
             f"You opened this via **{mode_label}**.\n\n"
-            "Your generated carousels will appear here as:\n"
-            f"{user.mention} 🎠 + 4 PNG slides.\n\n"
+            "Your generated carousels will appear here as 4 PNG photos "
+            "(each with a Discord download button) plus Download links.\n\n"
             "Ready to post as an Instagram/TikTok carousel."
         ),
         color=CONTENT_COLOR,

@@ -106,12 +106,55 @@ async def deliver_clip_to_thread(
     return "external", url
 
 
-def _discord_files(slides: list[Path], clip_label: str) -> list[discord.File]:
-    slug = clip_label.replace(" ", "_").lower()
-    return [
-        discord.File(path, filename=f"{slug}_{path.name}")
-        for path in slides
-    ]
+SLIDE_LABELS = ("Hook", "Google", "Jellyjob", "Recap")
+
+
+def _slide_filename(index: int, label: str) -> str:
+    slug = "".join(ch if ch.isalnum() else "_" for ch in label.lower()).strip("_")
+    return f"slide_{index:02d}_{slug or 'slide'}.png"
+
+
+def _download_view(items: list[tuple[str, str]]) -> discord.ui.View:
+    view = discord.ui.View(timeout=None)
+    for label, url in items[:5]:
+        view.add_item(
+            discord.ui.Button(
+                label=f"Download {label}",
+                style=discord.ButtonStyle.link,
+                url=url,
+                emoji="⬇️",
+            )
+        )
+    return view
+
+
+async def _send_slide_image(
+    thread: discord.Thread,
+    path: Path,
+    *,
+    filename: str,
+    caption: str,
+) -> tuple[str, str]:
+    """Post one PNG so Discord shows the native download control. Fallback: external URL."""
+    try:
+        message = await thread.send(
+            caption,
+            file=discord.File(path, filename=filename),
+        )
+        if message.attachments:
+            return "discord", message.attachments[0].url
+        return "discord", ""
+    except discord.HTTPException as exc:
+        if not is_payload_too_large(exc):
+            raise
+
+    url = await upload_to_external_host(path)
+    await thread.send(
+        f"{caption} — too large for Discord, download here "
+        f"(link valid **{EXTERNAL_LINK_TTL}**):\n{url}",
+        suppress_embeds=True,
+    )
+    return "external", url
 
 
 async def deliver_carousel_to_thread(
@@ -122,7 +165,7 @@ async def deliver_carousel_to_thread(
     clip_label: str,
 ) -> tuple[str, str | None]:
     """
-    Send 4 carousel slides as a Discord album, then one-by-one, then external links.
+    Send each slide as its own image (native Discord download), plus Download buttons.
     """
     if len(slides) < 1:
         raise CarouselAssemblyError("No carousel slides to upload.")
@@ -131,35 +174,35 @@ async def deliver_carousel_to_thread(
     if missing:
         raise CarouselAssemblyError(f"Carousel files missing: {', '.join(missing)}")
 
-    try:
-        await thread.send(
-            f"{member.mention} 🎠 **{clip_label}**",
-            files=_discord_files(slides, clip_label),
+    await thread.send(f"{member.mention} 🎠 **{clip_label}**")
+
+    download_items: list[tuple[str, str]] = []
+    used_external = False
+    for index, path in enumerate(slides, start=1):
+        label = SLIDE_LABELS[index - 1] if index <= len(SLIDE_LABELS) else f"Slide {index}"
+        filename = _slide_filename(index, label)
+        caption = f"**{label}** ({index}/{len(slides)})"
+        mode, url = await _send_slide_image(
+            thread,
+            path,
+            filename=filename,
+            caption=caption,
         )
-        return "discord", None
-    except discord.HTTPException as exc:
-        if not is_payload_too_large(exc):
-            raise
+        if mode == "external":
+            used_external = True
+        if url:
+            download_items.append((label, url))
 
-    try:
-        await thread.send(f"{member.mention} 🎠 **{clip_label}**")
-        for path in slides:
-            await thread.send(file=discord.File(path, filename=path.name))
-        return "discord", None
-    except discord.HTTPException as exc:
-        if not is_payload_too_large(exc):
-            raise
+    if download_items:
+        await thread.send(
+            "⬇️ **Tap to download each slide**",
+            view=_download_view(download_items),
+        )
 
-    urls: list[str] = []
-    for path in slides:
-        urls.append(await upload_to_external_host(path))
-    joined = "\n".join(f"• {url}" for url in urls)
-    await thread.send(
-        f"{member.mention} 🎠 **{clip_label}** — too large for Discord, "
-        f"download here (links valid **{EXTERNAL_LINK_TTL}**):\n{joined}",
-        suppress_embeds=True,
-    )
-    return "external", urls[0] if urls else None
+    if not download_items:
+        raise CarouselAssemblyError("Could not upload any carousel slides.")
+
+    return ("external" if used_external else "discord"), download_items[0][1]
 
 
 async def _prepare(path: Path, *, emergency: bool) -> Path:
