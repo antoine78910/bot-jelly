@@ -37,7 +37,7 @@ CAPTIONS_FILE = PROJECT_ROOT / "carousel_captions.txt"
 # Avatar pack 1 = femme noir (drop photos in assets/avatars/femme_noir/)
 DEFAULT_AVATAR_PACK = "femme_noir"
 # Photo packs under assets/photos/ — slides 2–4 pick at random from all packs
-DEFAULT_PHOTO_PACK = None  # None = all packs (study_work, lifestyle, …)
+DEFAULT_PHOTO_PACK = None  # None = mix every remaining pack under assets/photos/
 
 # Photo augment: random = pick 1 of 4 per carousel (default). A/B compare via --ab-test only.
 AUGMENT_METHODS = ("crop", "grade", "grain", "prop")
@@ -303,16 +303,25 @@ def _draw_mixed_text(
 
 
 def _collect_images(directory: Path, recursive: bool = True) -> list[Path]:
-    """Collect PNG/JPG/WEBP from a folder (optionally recursive)."""
+    """Collect readable PNG/JPG/WEBP from a folder (skips missing/corrupt files)."""
     if not directory.is_dir():
         return []
     paths = directory.rglob("*") if recursive else directory.iterdir()
-    return sorted(
-        p for p in paths
-        if p.is_file()
-        and p.suffix.lower() in _IMG_EXTS
-        and not p.name.lower().startswith("readme")
-    )
+    found: list[Path] = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in _IMG_EXTS:
+            continue
+        if path.name.lower().startswith("readme"):
+            continue
+        try:
+            with Image.open(path) as img:
+                img.verify()
+        except (OSError, ValueError):
+            continue
+        found.append(path)
+    return sorted(found)
 
 
 def _avatar_pack_dir(pack: str) -> Path:
