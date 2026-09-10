@@ -200,7 +200,8 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "il reçoit automatiquement un lien en DM.\n\n"
             "Pour l’utiliser, passe le compte en compte professionnel. "
             "Réglages Instagram → type de compte → compte professionnel / entreprise.\n\n"
-            "Va sur Superprofile, inscris-toi gratuitement, reste sur l’offre free.\n\n"
+            "Va sur **Superprofile** (gratuit) : https://superprofile.bio/\n"
+            "Inscris-toi, reste sur l’offre free.\n\n"
             "Sur chaque post, tu dois envoyer les liens via l’automation DM.\n\n"
             "Mots-clés : **JOB**, **CV** ou **IA** selon le post.\n\n"
             "**Légende :**\n"
@@ -208,9 +209,7 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "Commente « CV » pour la méthode\n"
             "Commente « IA » pour le lien\n"
             "(le mot-clé doit matcher les liens configurés ci-dessous)\n\n"
-            "**Le bouton « Open Link »** envoie ce lien :\n"
-            "https://tryjobshift.com\n\n"
-            "**Le bouton « CV » / méthode** envoie aussi :\n"
+            "**Lien du site à envoyer (tous les boutons) :**\n"
             "https://tryjobshift.com"
         ),
         "color": EMBED_COLOR,
