@@ -43,7 +43,7 @@ def start_here_description() -> str:
     music = channel_mention("music")
 
     return (
-        "Bienvenue sur **Jellyjob** 👋\n"
+        "Bienvenue sur **JobShift** 👋\n"
         "Tu es à quelques étapes d’être payé pour poster du contenu.\n\n"
         "💰 **Ce que tu gagnes**\n"
         "• 1 $ / 1k vues\n\n"
@@ -72,17 +72,17 @@ def payouts_description() -> str:
 
 MESSAGE_TEMPLATES: dict[str, dict] = {
     "start_here": {
-        "title": "💸 JELLY POSTING — COMMENCE ICI",
+        "title": "💸 JOBSHIFT POSTING — COMMENCE ICI",
         "description": "",  # rempli dynamiquement via get_template()
         "color": EMBED_COLOR,
     },
     "payouts": {
-        "title": "💸 JELLY POSTING — PAIEMENTS",
+        "title": "💸 JOBSHIFT POSTING — PAIEMENTS",
         "description": "",
         "color": EMBED_COLOR,
     },
     "account_setup": {
-        "title": "💸 JELLY POSTING — CRÉATION DE COMPTE",
+        "title": "💸 JOBSHIFT POSTING — CRÉATION DE COMPTE",
         "description": (
             "Crée un tout nouveau compte Instagram.\n\n"
             "**Pseudo :** job / carrière / étudiant + prénom français\n"
@@ -118,13 +118,13 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
         "color": EMBED_COLOR,
     },
     "warmup": {
-        "title": "💸 JELLY POSTING — CHAUFFE DU COMPTE",
+        "title": "💸 JOBSHIFT POSTING — CHAUFFE DU COMPTE",
         "description": (
             "⚠️ Quand tu cherches des mots-clés pour chauffer tes comptes, cherche "
             "**dans la langue dans laquelle tu vas poster** (ici : **français**).\n\n"
-            "**C’est quoi JellyJob ?**\n"
+            "**C’est quoi JobShift ?**\n"
             "App de recherche d’emploi façon **Tinder** : tu swipe les offres, "
-            "JellyJob **postule pour toi** et adapte ton **CV** + ta **lettre de "
+            "JobShift **postule pour toi** et adapte ton **CV** + ta **lettre de "
             "motivation**. Site : **jellyjob.co**\n\n"
             "**Qui tu es**\n"
             "Quelqu’un qui cherche un job, qui déteste postuler, ou qui est à bout "
@@ -135,11 +135,11 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "> POV : je postule comme si je swipe sur Tinder.\n"
             "> La recherche d’emploi était si nulle que j’ai trouvé un moyen de "
             "faire postuler mon téléphone.\n\n"
-            "Parle **d’abord de ta galère**, puis présente JellyJob comme une "
+            "Parle **d’abord de ta galère**, puis présente JobShift comme une "
             "**découverte** — pas une pub. Le viewer doit se dire « wait, ça existe ? », "
             "pas « c’est clairement une sponso ».\n\n"
             "────────\n\n"
-            "**Installer JellyJob**\n"
+            "**Installer JobShift**\n"
             "1. On t’envoie un **lien d’invitation** → inscription directe. Lien "
             "expiré ? Envoie-nous un message.\n"
             "2. Crée ton compte : l’invitation = **accès créateur gratuit**.\n"
@@ -156,7 +156,7 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "2. Crée **TikTok ET Instagram**. Ça doit ressembler à une **vraie "
             "personne** qui documente sa recherche d’emploi — **pas** un compte promo.\n\n"
             "Exemples : careerwithlea, leasjobhunt, lifewithlea, leas9to5, "
-            "corporategirllea, jobhuntingwithlea. Pas de « jellyjob » dans le "
+            "corporategirllea, jobhuntingwithlea. Pas de « jobshift » dans le "
             "pseudo. Pas de règle stricte, sois créatif.\n\n"
             "**Bio** — ne mets **pas** de bio avant tes vidéos de chauffe.\n"
             "Ex. : ma carrière un jour à la fois 💻 · en train de chercher mon "
@@ -186,7 +186,7 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "Moins de recherche manuelle, plus d’engagement FYP. Toujours ≥ 20 vidéos. "
             "Follow **2–5 comptes / jour**. Avant de poster : **~15–20+ comptes** "
             "suivis dans la niche.\n\n"
-            "**Avant le 1er post JellyJob** : 15–20+ comptes suivis · 20+ vidéos "
+            "**Avant le 1er post JobShift** : 15–20+ comptes suivis · 20+ vidéos "
             "enregistrées · plusieurs reposts + vrais commentaires · FYP / Explore "
             "surtout carrière / emploi.\n\n"
             "**JOUR 4 — vérif avant de poster**\n"
@@ -214,7 +214,7 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
         "color": EMBED_COLOR,
     },
     "dm_automation": {
-        "title": "💸 JELLY POSTING — AUTOMATION DM",
+        "title": "💸 JOBSHIFT POSTING — AUTOMATION DM",
         "description": (
             "L’automation DM est obligatoire sur chaque post pour être payé.\n\n"
             "**C’est quoi l’automation DM ?**\n\n"
@@ -255,7 +255,7 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
         "color": EMBED_COLOR,
     },
     "bot_online": {
-        "title": "✅ Jelly est en ligne",
+        "title": "✅ JobShift est en ligne",
         "description": (
             "Bot en ligne. Utilise `!refresh` dans un salon pour mettre à jour "
             "son message (pas automatique au redémarrage)."

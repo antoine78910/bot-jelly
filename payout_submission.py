@@ -190,7 +190,7 @@ class PayoutTicketView(discord.ui.View):
         if opener:
             try:
                 await opener.send(
-                    "✅ Ton paiement a été traité et envoyé. Merci de poster avec **Jelly** !"
+                    "✅ Ton paiement a été traité et envoyé. Merci de poster avec **JobShift** !"
                 )
             except discord.HTTPException:
                 pass

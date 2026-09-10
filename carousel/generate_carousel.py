@@ -785,7 +785,7 @@ def _pick_paired_slides() -> tuple[
 ]:
     """
     Pick one coherent style for slides 2–4:
-      routine → Google 8h00–8h10 + Jellyjob 8h10–8h15 + recap 8h15–8h20
+      routine → Google 8h00–8h10 + JobShift 8h10–8h15 + recap 8h15–8h20
       etape   → #étape 1# + #étape 2# + récap blanc
     """
     method_by = _blocks_by_style("method")
@@ -1016,7 +1016,7 @@ def generate_type1_carousel(
     Type 1 (strict):
       slide 1 = AVATAR + hook
       slide 2 = STYLE + Google (routine OR etape)
-      slide 3 = STYLE + Jellyjob (same style)
+      slide 3 = STYLE + JobShift (same style)
       slide 4 = STYLE + recap (same style)
     """
     dest = Path(output_dir) if output_dir is not None else OUTPUT_DIR
@@ -1076,7 +1076,7 @@ def generate_type1_carousel(
     picks = pool[:TYPE1_LIFESTYLE_COUNT]
 
     texts = (method_lines, jellyjob_lines, recap_lines)
-    labels = ("GOOGLE", "JELLYJOB", "RECAP")
+    labels = ("GOOGLE", "JOBSHIFT", "RECAP")
     for i, (pick, text, label) in enumerate(zip(picks, texts, labels)):
         bg = _load_cover_augmented(pick, CANVAS_W, CANVAS_H, aug, seed_base + 1 + i)
         slide = render_slide_with_text(bg, text, style)
@@ -1097,7 +1097,7 @@ def generate_type1_carousel(
 
 
 def run_test(color: str = DEFAULT_COLOR) -> Path:
-    """Black 9:16 previews: hook + paired routine & etape (Google + Jellyjob + recap)."""
+    """Black 9:16 previews: hook + paired routine & etape (Google + JobShift + recap)."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     style = TIKTOK_STYLE.get(color, TIKTOK_STYLE[DEFAULT_COLOR])
     bg = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
@@ -1193,7 +1193,7 @@ def main():
     photo_packs = _list_photo_packs()
 
     print(f"Generating {args.sets} type-1 carousel(s) — 4 slides — {args.color}")
-    print(f"  Slide 1 = AVATAR + hook  |  2 = Google  |  3 = Jellyjob  |  4 = Recap")
+    print(f"  Slide 1 = AVATAR + hook  |  2 = Google  |  3 = JobShift  |  4 = Recap")
     print(f"  Avatar pack: {args.avatar} → {avatar_dir}")
     print(f"  Avatars: {len(avatars)} files")
     photo_label = args.photos or "all packs"

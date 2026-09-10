@@ -31,7 +31,7 @@ def _log_channel_id() -> int:
 
 def welcome_embed() -> discord.Embed:
     return discord.Embed(
-        title="🚀 Bienvenue dans la campagne Jelly Posting",
+        title="🚀 Bienvenue dans la campagne JobShift Posting",
         description=(
             "Clique sur le bouton ci-dessous pour t’inscrire.\n\n"
             "**On te demandera :**\n"
@@ -46,7 +46,7 @@ def welcome_embed() -> discord.Embed:
     )
 
 
-class RegistrationModal(discord.ui.Modal, title="Inscription Jelly Posting"):
+class RegistrationModal(discord.ui.Modal, title="Inscription JobShift Posting"):
     instagram = discord.ui.TextInput(
         label="Pseudo Instagram (compte posting)",
         placeholder="@toncompte",
@@ -91,7 +91,7 @@ class RegistrationModal(discord.ui.Modal, title="Inscription Jelly Posting"):
             value=self.payout_details.value or "—",
             inline=False,
         )
-        embed.set_footer(text="Inscription Jelly Posting")
+        embed.set_footer(text="Inscription JobShift Posting")
         embed.timestamp = discord.utils.utcnow()
 
         log_channel = interaction.client.get_channel(_log_channel_id()) if interaction.client else None
@@ -101,7 +101,7 @@ class RegistrationModal(discord.ui.Modal, title="Inscription Jelly Posting"):
 
         confirm = discord.Embed(
             title="✅ Inscription terminée",
-            description="Tu es officiellement dans la campagne **Jelly Posting**.",
+            description="Tu es officiellement dans la campagne **JobShift Posting**.",
             color=EMBED_COLOR,
         )
         await interaction.response.send_message(embed=confirm, ephemeral=True)

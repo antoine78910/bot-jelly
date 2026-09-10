@@ -65,7 +65,7 @@ def panel_embed() -> discord.Embed:
         title="🎬 Générateur de contenu",
         description=(
             "Clique sur un bouton ci-dessous pour générer un carrousel unique "
-            "de 4 slides (accroche, Google, Jellyjob, récap).\n\n"
+            "de 4 slides (accroche, Google, JobShift, récap).\n\n"
             "**Générer du contenu** — 1 carrousel\n"
             "**Générer un lot** — jusqu’à 5 carrousels (accroches, textes, CTA et photos différents)\n\n"
             "Chaque export mélange légendes, avatar, photos lifestyle et un effet visuel.\n\n"

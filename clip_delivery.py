@@ -106,7 +106,7 @@ async def deliver_clip_to_thread(
     return "external", url
 
 
-SLIDE_LABELS = ("Accroche", "Google", "Jellyjob", "Récap")
+SLIDE_LABELS = ("Accroche", "Google", "JobShift", "Récap")
 
 
 def _slide_filename(index: int, label: str) -> str:
