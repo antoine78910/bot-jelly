@@ -228,7 +228,7 @@ async def post_proofs(ctx: commands.Context):
     """Publie les screenshots de preuves de payout dans ce salon."""
     from payout_proofs import PAYOUT_PROOFS_TEMPLATE
 
-    await publish_channel(ctx.channel, PAYOUT_PROOFS_TEMPLATE, bot.user)
+    await publish_channel(ctx.channel, PAYOUT_PROOFS_TEMPLATE, bot.user, force=True)
     await ctx.message.delete()
 
 

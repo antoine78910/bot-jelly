@@ -112,9 +112,9 @@ def list_proof_image_paths() -> list[Path]:
 def proof_images_fingerprint() -> str:
     parts: list[str] = []
     for path in list_proof_image_paths():
-        stat = path.stat()
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
         sort_key = _proof_sort_key(path)[0].isoformat()
-        parts.append(f"{sort_key}:{path.name}:{stat.st_mtime_ns}:{stat.st_size}")
+        parts.append(f"{sort_key}:{path.name}:{digest}")
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 

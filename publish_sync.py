@@ -91,7 +91,11 @@ def _raw_fingerprint(template_name: str) -> str:
 
 
 def compute_fingerprint(template_name: str) -> str:
-    return _hash_payload({"sync_version": SYNC_VERSION, "content": _raw_fingerprint(template_name)})
+    content = _raw_fingerprint(template_name)
+    if template_name == "payout_proofs":
+        # Proof images must not resync just because unrelated copy/sync_version changed.
+        return _hash_payload({"content": content})
+    return _hash_payload({"sync_version": SYNC_VERSION, "content": content})
 
 
 def expected_message_count(template_name: str) -> int | None:
@@ -161,10 +165,21 @@ async def should_skip_publish(
     *,
     force: bool = False,
 ) -> bool:
+    stored = get_channel_state(channel.id)
     if force:
         return False
 
-    stored = get_channel_state(channel.id)
+    if template_name == "payout_proofs":
+        expected = expected_message_count(template_name) or 0
+        visible = await count_bot_panel_messages(channel, bot_user, template_name)
+        content_changed = (
+            stored is not None
+            and stored.get("template") == template_name
+            and stored.get("fingerprint") != fingerprint
+        )
+        if expected > 0 and visible >= expected and not content_changed:
+            return True
+
     if not stored:
         return False
     if stored.get("template") != template_name:
