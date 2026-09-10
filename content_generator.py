@@ -83,8 +83,8 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
         description=(
             f"Salut {user.mention} — voici ton fil privé de posting.\n\n"
             f"Tu l’as ouvert via **{mode_label}**.\n\n"
-            "Tes carrousels apparaîtront ici en 4 photos PNG "
-            "(chacune avec un bouton de téléchargement Discord) plus des liens Télécharger.\n\n"
+            "Tes carrousels apparaîtront ici en **un message de 4 photos**, "
+            "avec un bouton **Télécharger le ZIP** pour récupérer les 4 slides.\n\n"
             "Prêt à poster en carrousel Instagram / TikTok."
         ),
         color=CONTENT_COLOR,

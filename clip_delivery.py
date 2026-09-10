@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import zipfile
 
 import aiohttp
 import discord
@@ -31,8 +32,8 @@ def _content_type_for(path: Path) -> str:
         return "image/jpeg"
     if suffix == ".webp":
         return "image/webp"
-    if suffix == ".mp4":
-        return "video/mp4"
+    if suffix == ".zip":
+        return "application/zip"
     return "application/octet-stream"
 
 
@@ -107,54 +108,49 @@ async def deliver_clip_to_thread(
 
 
 SLIDE_LABELS = ("Accroche", "Google", "JobShift", "Récap")
+SLIDE_SLUGS = ("accroche", "google", "jobshift", "recap")
 
 
 def _slide_filename(index: int, label: str) -> str:
-    slug = "".join(ch if ch.isalnum() else "_" for ch in label.lower()).strip("_")
+    if 1 <= index <= len(SLIDE_SLUGS):
+        slug = SLIDE_SLUGS[index - 1]
+    else:
+        slug = "".join(ch if ch.isalnum() else "_" for ch in label.lower()).strip("_")
     return f"slide_{index:02d}_{slug or 'slide'}.png"
 
 
-def _download_view(items: list[tuple[str, str]]) -> discord.ui.View:
+def _slide_names(slides: list[Path]) -> list[tuple[Path, str]]:
+    named: list[tuple[Path, str]] = []
+    for index, path in enumerate(slides, start=1):
+        label = SLIDE_LABELS[index - 1] if index <= len(SLIDE_LABELS) else f"Slide {index}"
+        named.append((path, _slide_filename(index, label)))
+    return named
+
+
+def _build_carousel_zip(slides: list[Path], dest: Path) -> Path:
+    with zipfile.ZipFile(dest, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path, filename in _slide_names(slides):
+            archive.write(path, arcname=filename)
+    return dest
+
+
+def _zip_download_view(url: str) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
-    for label, url in items[:5]:
-        view.add_item(
-            discord.ui.Button(
-                label=f"Télécharger {label}",
-                style=discord.ButtonStyle.link,
-                url=url,
-                emoji="⬇️",
-            )
+    view.add_item(
+        discord.ui.Button(
+            label="Télécharger le ZIP",
+            style=discord.ButtonStyle.link,
+            url=url,
+            emoji="⬇️",
         )
+    )
     return view
 
 
-async def _send_slide_image(
-    thread: discord.Thread,
-    path: Path,
-    *,
-    filename: str,
-    caption: str,
-) -> tuple[str, str]:
-    """Post one PNG so Discord shows the native download control. Fallback: external URL."""
-    try:
-        message = await thread.send(
-            caption,
-            file=discord.File(path, filename=filename),
-        )
-        if message.attachments:
-            return "discord", message.attachments[0].url
-        return "discord", ""
-    except discord.HTTPException as exc:
-        if not is_payload_too_large(exc):
-            raise
-
-    url = await upload_to_external_host(path)
-    await thread.send(
-        f"{caption} — trop lourd pour Discord, télécharge ici "
-        f"(lien valable **{EXTERNAL_LINK_TTL}**) :\n{url}",
-        suppress_embeds=True,
-    )
-    return "external", url
+async def _zip_url(slides: list[Path]) -> str:
+    zip_path = slides[0].parent / "carousel.zip"
+    _build_carousel_zip(slides, zip_path)
+    return await upload_to_external_host(zip_path)
 
 
 async def deliver_carousel_to_thread(
@@ -164,9 +160,7 @@ async def deliver_carousel_to_thread(
     *,
     clip_label: str,
 ) -> tuple[str, str | None]:
-    """
-    Send each slide as its own image (native Discord download), plus Download buttons.
-    """
+    """Send the 4 slides as one Discord album, plus a ZIP download button."""
     if len(slides) < 1:
         raise CarouselAssemblyError("Aucune slide de carrousel à envoyer.")
 
@@ -174,35 +168,45 @@ async def deliver_carousel_to_thread(
     if missing:
         raise CarouselAssemblyError(f"Fichiers carrousel manquants : {', '.join(missing)}")
 
-    await thread.send(f"{member.mention} 🎠 **{clip_label}**")
+    caption = f"{member.mention} 🎠 **{clip_label}**"
+    files = [
+        discord.File(path, filename=filename)
+        for path, filename in _slide_names(slides)
+    ]
 
-    download_items: list[tuple[str, str]] = []
-    used_external = False
-    for index, path in enumerate(slides, start=1):
-        label = SLIDE_LABELS[index - 1] if index <= len(SLIDE_LABELS) else f"Slide {index}"
-        filename = _slide_filename(index, label)
-        caption = f"**{label}** ({index}/{len(slides)})"
-        mode, url = await _send_slide_image(
-            thread,
-            path,
-            filename=filename,
-            caption=caption,
-        )
-        if mode == "external":
-            used_external = True
-        if url:
-            download_items.append((label, url))
+    zip_link: str | None = None
+    try:
+        zip_link = await _zip_url(slides)
+    except ClipAssemblyError:
+        zip_link = None
 
-    if download_items:
-        await thread.send(
-            "⬇️ **Appuie pour télécharger chaque slide**",
-            view=_download_view(download_items),
-        )
+    view = _zip_download_view(zip_link) if zip_link else None
 
-    if not download_items:
-        raise CarouselAssemblyError("Impossible d’envoyer les slides du carrousel.")
+    try:
+        await thread.send(caption, files=files, view=view)
+        if zip_link is None:
+            zip_path = slides[0].parent / "carousel.zip"
+            if not zip_path.is_file():
+                _build_carousel_zip(slides, zip_path)
+            await thread.send(
+                "⬇️ **ZIP des 4 slides**",
+                file=discord.File(zip_path, filename="carousel.zip"),
+            )
+        return ("discord", zip_link)
+    except discord.HTTPException as exc:
+        if not is_payload_too_large(exc):
+            raise
 
-    return ("external" if used_external else "discord"), download_items[0][1]
+    if zip_link is None:
+        zip_link = await _zip_url(slides)
+
+    await thread.send(
+        f"{caption} — trop lourd pour Discord en album, "
+        f"télécharge le ZIP (lien valable **{EXTERNAL_LINK_TTL}**) :\n{zip_link}",
+        view=_zip_download_view(zip_link),
+        suppress_embeds=True,
+    )
+    return "external", zip_link
 
 
 async def _prepare(path: Path, *, emergency: bool) -> Path:
