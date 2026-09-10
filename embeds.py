@@ -94,9 +94,9 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "https://drive.google.com/drive/folders/1JBwgJrwDsonIXMvyC_LXXJqInpHchuID?usp=sharing\n\n"
             "**Bio :**\n"
             "Je t’aide à trouver un job plus vite avec l’IA 👀\n"
-            "Commence sur jellyjob.co\n\n"
+            "Commence sur tryjobshift.com\n\n"
             "**Lien en bio :**\n"
-            "https://jellyjob.co\n\n"
+            "https://tryjobshift.com\n\n"
             "Ajoute le lien seulement une fois que tu as dépassé 30k vues sur le compte.\n\n"
             "**Fréquence de posts :**\n\n"
             "Poste 1 à 3 fois par jour. Une fois les essais Reels débloqués, "
@@ -109,11 +109,11 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "**✉️ Légende & hashtags**\n\n"
             "Utilise une de ces premières lignes (première ligne de la légende) :\n\n"
             "**Option 1 — Job**\n"
-            "Commente « JOB » pour essayer → envoie le lien jellyjob.co\n\n"
+            "Commente « JOB » pour essayer → envoie le lien tryjobshift.com\n\n"
             "Hashtags (3 à 5) : #rechercheemploi #jobetudiant #alternance #cv "
             "#premieremploi #conseilscv #linkedin #intelligenceartificielle\n\n"
             "**Option 2 — CV**\n"
-            "Commente « CV » pour la méthode → envoie le lien jellyjob.co"
+            "Commente « CV » pour la méthode → envoie le lien tryjobshift.com"
         ),
         "color": EMBED_COLOR,
     },
@@ -125,7 +125,7 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "**C’est quoi JobShift ?**\n"
             "App de recherche d’emploi façon **Tinder** : tu swipe les offres, "
             "JobShift **postule pour toi** et adapte ton **CV** + ta **lettre de "
-            "motivation**. Site : **jellyjob.co**\n\n"
+            "motivation**. Site : **tryjobshift.com**\n\n"
             "**Qui tu es**\n"
             "Quelqu’un qui cherche un job, qui déteste postuler, ou qui est à bout "
             "du process. Parle de trucs relatable : 50+ candidatures sans réponse, "
@@ -231,9 +231,9 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "Commente « IA » pour le lien\n"
             "(le mot-clé doit matcher les liens configurés ci-dessous)\n\n"
             "**Le bouton « Open Link »** envoie ce lien :\n"
-            "https://jellyjob.co\n\n"
+            "https://tryjobshift.com\n\n"
             "**Le bouton « CV » / méthode** envoie aussi :\n"
-            "https://jellyjob.co"
+            "https://tryjobshift.com"
         ),
         "color": EMBED_COLOR,
     },
