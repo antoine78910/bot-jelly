@@ -32,6 +32,7 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+_webhook_runner = None
 
 
 async def publish_all_channels() -> None:
@@ -58,6 +59,8 @@ async def publish_all_channels() -> None:
 
 @bot.event
 async def on_ready():
+    global _webhook_runner
+
     print(f"Connecté en tant que {bot.user} (ID: {bot.user.id})")
     print("------")
 
@@ -65,6 +68,11 @@ async def on_ready():
     bot.add_view(PayoutSubmitView())
     bot.add_view(PayoutTicketView())
     bot.add_view(ContentGeneratorView())
+
+    if _webhook_runner is None:
+        from creator_signup_webhook import start_creator_signup_webhook
+
+        _webhook_runner = await start_creator_signup_webhook(bot)
 
     if AUTO_PUBLISH:
         await publish_all_channels()
@@ -230,6 +238,40 @@ async def post_proofs(ctx: commands.Context):
 
     await publish_channel(ctx.channel, PAYOUT_PROOFS_TEMPLATE, bot.user, force=True)
     await ctx.message.delete()
+
+
+@bot.command(name="testcreatorsignup")
+@commands.has_permissions(administrator=True)
+async def test_creator_signup(ctx: commands.Context):
+    """Send a test creator signup notification to the Creators log channel."""
+    from creator_signups import CreatorSignup, log_creator_signup
+
+    signup = CreatorSignup(
+        email="marie.dupont@example.com",
+        country="France",
+        accounts=(
+            "• **Instagram:** @marie.jobsearch\n"
+            "• **TikTok:** @marie.career.tips"
+        ),
+        user_id="test-user-001",
+        full_name="Marie Dupont",
+        signed_up_at="2026-09-12T08:22:00Z",
+    )
+
+    message = await log_creator_signup(bot, signup)
+    if message is None:
+        await ctx.send(
+            "Could not send notification — check `creator_signup_log_channel` in "
+            "`channel_config.json` and bot access to the Creators server.",
+            delete_after=12,
+        )
+        return
+
+    await ctx.send(f"Test notification sent: {message.jump_url}", delete_after=12)
+    try:
+        await ctx.message.delete()
+    except discord.HTTPException:
+        pass
 
 
 @bot.command(name="postcontent")

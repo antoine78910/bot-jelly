@@ -1,6 +1,8 @@
 {
   "_comment": "channels = salon ID → template | channel_links = mentions cliquables dans start_here",
   "guild_id": "1546459225260298240",
+  "creators_guild_id": "1540823867818385468",
+  "creator_signup_log_channel": "1547101182680629268",
   "registration_log_channel": "",
   "discord_join_log_channel": "",
   "content_generation_log_channel": "",
@@ -10,6 +12,7 @@
     "account_setup": "1546460016184266836",
     "apply": "1546459810378162186",
     "warmup": "1546460043476734042",
+    "approval": "1547529134211596338",
     "content_bot": "1546460102234607687",
     "dm_automation": "1546460072681668668",
     "payout_submission": "1546460130470527017",
