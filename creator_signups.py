@@ -115,12 +115,19 @@ class CreatorSignup:
 
         accounts = _format_accounts(record)
         user_id = record.get("id") or record.get("user_id")
-        full_name = record.get("full_name") or record.get("name")
+        full_name = (
+            record.get("full_name")
+            or record.get("display_name")
+            or record.get("name")
+        )
         signed_up_at = record.get("created_at") or record.get("signed_up_at")
 
+        email_value = str(email).strip() if email is not None else ""
+        country_value = str(country).strip() if country is not None else ""
+
         return cls(
-            email=str(email),
-            country=str(country),
+            email=email_value or "—",
+            country=country_value or "—",
             accounts=accounts,
             user_id=str(user_id) if user_id else None,
             full_name=str(full_name) if full_name else None,
