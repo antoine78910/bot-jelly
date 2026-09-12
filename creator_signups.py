@@ -10,7 +10,7 @@ from typing import Any
 
 import discord
 
-from notify_roles import notify_role_mention
+from notify_roles import notify_mentions
 
 CONFIG_PATH = Path(__file__).parent / "channel_config.json"
 
@@ -92,6 +92,8 @@ class CreatorSignup:
     email: str
     country: str
     accounts: str
+    region: str | None = None
+    city: str | None = None
     user_id: str | None = None
     full_name: str | None = None
     signed_up_at: str | None = None
@@ -112,9 +114,11 @@ class CreatorSignup:
             or record.get("country_name")
             or "—"
         )
+        region = record.get("region")
+        city = record.get("city")
 
         accounts = _format_accounts(record)
-        user_id = record.get("id") or record.get("user_id")
+        user_id = record.get("id") or record.get("user_id") or record.get("creator_id")
         full_name = (
             record.get("full_name")
             or record.get("display_name")
@@ -124,11 +128,15 @@ class CreatorSignup:
 
         email_value = str(email).strip() if email is not None else ""
         country_value = str(country).strip() if country is not None else ""
+        region_value = str(region).strip() if region else None
+        city_value = str(city).strip() if city else None
 
         return cls(
             email=email_value or "—",
             country=country_value or "—",
             accounts=accounts,
+            region=region_value or None,
+            city=city_value or None,
             user_id=str(user_id) if user_id else None,
             full_name=str(full_name) if full_name else None,
             signed_up_at=str(signed_up_at) if signed_up_at else None,
@@ -177,6 +185,10 @@ def build_signup_embed(signup: CreatorSignup) -> discord.Embed:
         embed.add_field(name="Name", value=signup.full_name, inline=True)
     embed.add_field(name="Email", value=signup.email, inline=True)
     embed.add_field(name="Country", value=signup.country, inline=True)
+    if signup.region:
+        embed.add_field(name="Region", value=signup.region, inline=True)
+    if signup.city:
+        embed.add_field(name="City", value=signup.city, inline=True)
     embed.add_field(name="Accounts", value=signup.accounts[:1024], inline=False)
 
     if signup.user_id:
@@ -220,9 +232,14 @@ async def log_creator_signup(
 
     embed = build_signup_embed(signup)
     view = build_signup_view(invite_url)
-    ping = notify_role_mention()
+    ping = notify_mentions()
 
-    return await channel.send(content=ping or None, embed=embed, view=view)
+    return await channel.send(
+        content=ping or None,
+        embed=embed,
+        view=view,
+        allowed_mentions=discord.AllowedMentions(users=True, roles=True),
+    )
 
 
 def verify_webhook_secret(request_headers: dict[str, str]) -> bool:
@@ -245,11 +262,17 @@ def verify_webhook_secret(request_headers: dict[str, str]) -> bool:
 
 async def handle_signup_webhook(client: discord.Client, payload: dict[str, Any]) -> bool:
     event_type = payload.get("type")
-    if event_type and event_type != "INSERT":
+    # Accept INSERT (legacy) and UPDATE (onboarding/profile ready) events.
+    if event_type and event_type not in ("INSERT", "UPDATE", "CREATOR_READY"):
         return False
 
     signup = CreatorSignup.from_payload(payload)
-    if signup.email == "—" and signup.accounts == "—":
+    if (
+        signup.email == "—"
+        and signup.accounts == "—"
+        and signup.country == "—"
+        and not signup.full_name
+    ):
         return False
 
     await log_creator_signup(client, signup)

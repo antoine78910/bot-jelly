@@ -7,6 +7,7 @@
   "discord_join_log_channel": "",
   "content_generation_log_channel": "",
   "notify_role_id": "",
+  "notify_user_ids": ["1015244275354706002"],
   "clip_batch_size": 3,
   "channel_links": {
     "account_setup": "1546460016184266836",

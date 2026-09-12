@@ -249,6 +249,8 @@ async def test_creator_signup(ctx: commands.Context):
     signup = CreatorSignup(
         email="marie.dupont@example.com",
         country="France",
+        region="Île-de-France",
+        city="Paris",
         accounts=(
             "• **Instagram:** @marie.jobsearch\n"
             "• **TikTok:** @marie.career.tips"
