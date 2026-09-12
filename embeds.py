@@ -11,6 +11,7 @@ CHANNEL_LABELS = {
     "account_setup": "#👤-account-setup",
     "apply": "#🚀-apply",
     "warmup": "#🔥-warmup",
+    "approval": "#✅-approval",
     "content_bot": "#🎬-content-bot",
     "dm_automation": "#📩-dm-automation",
     "payout_submission": "#💳-payout-submission",
@@ -90,22 +91,17 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "lea.jobtips, studentwork.lea, jobs.etudiant, camille.carriere, "
             "lucas.jobs, jobsearch.lea\n\n"
             "**Nom :** un prénom français. Exemples : Marc, Léa, Camille, Lucas\n\n"
-            "**Photo de profil :**\n"
-            "https://drive.google.com/drive/folders/1JBwgJrwDsonIXMvyC_LXXJqInpHchuID?usp=sharing\n\n"
-            "**Bio :**\n"
-            "Je t’aide à trouver un job plus vite avec l’IA 👀\n"
-            "Commence sur tryjobshift.com\n\n"
+            "**Bio (exemples) :**\n"
+            "ma carrière un jour à la fois 💻 · en train de chercher mon "
+            "prochain job 🤞 · just a girl qui survit au marché de l’emploi\n\n"
             "**Lien en bio :**\n"
             "https://tryjobshift.com\n\n"
             "Ajoute le lien seulement une fois que tu as dépassé 30k vues sur le compte.\n\n"
             "**Fréquence de posts :**\n\n"
-            "Poste 1 à 3 fois par jour. Une fois les essais Reels débloqués, "
-            "poste 1 à 3 fois par jour là aussi.\n\n"
+            "Poste **3 fois par jour** à **15h, 18h et 21h (heure de Paris)**.\n\n"
             "**⏰ Horaires de publication :**\n\n"
             "On cible la **France**. Pour une audience FR, poste aux heures de pointe "
-            "françaises. Évite les soirées Asie.\n\n"
-            "Pour tes 1 à 3 posts par jour, publie entre **18h et minuit (heure de Paris)**.\n\n"
-            "Si tu es en Asie, ça correspond souvent à la fin de soirée / nuit chez toi.\n\n"
+            "françaises.\n\n"
             "**✉️ Légende & hashtags**\n\n"
             "Utilise une de ces premières lignes (première ligne de la légende) :\n\n"
             "**Option 1 — Job**\n"
@@ -176,7 +172,9 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "enregistrées · plusieurs reposts + vrais commentaires · FYP / Explore "
             "surtout carrière / emploi.\n\n"
             "**JOUR 4 — vérif avant de poster**\n"
-            "Envoie dans le Discord, pour **TikTok et Instagram** :\n"
+            "Envoie dans "
+            + channel_mention("approval")
+            + ", pour **TikTok et Instagram** :\n"
             "• capture du temps d’écran\n"
             "• **écran 30 secondes** de ton FYP (TikTok) / Explore-Reels (Instagram)\n"
             "On valide que **les deux** comptes sont bien chauffés.\n\n"
