@@ -1,6 +1,7 @@
 import os
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -33,6 +34,9 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 _webhook_runner = None
+
+# Guilds where slash commands are instantly synced (JobShift Post + JobShift Creators).
+SLASH_COMMAND_GUILD_IDS = [1546459225260298240, 1540823867818385468]
 
 
 async def publish_all_channels() -> None:
@@ -73,6 +77,15 @@ async def on_ready():
         from creator_signup_webhook import start_creator_signup_webhook
 
         _webhook_runner = await start_creator_signup_webhook(bot)
+
+    for guild_id in SLASH_COMMAND_GUILD_IDS:
+        guild_obj = discord.Object(id=guild_id)
+        try:
+            bot.tree.copy_global_to(guild=guild_obj)
+            synced = await bot.tree.sync(guild=guild_obj)
+            print(f"Synced {len(synced)} slash command(s) to guild {guild_id}")
+        except discord.HTTPException as exc:
+            print(f"Slash command sync failed for guild {guild_id}: {exc}")
 
     if AUTO_PUBLISH:
         await publish_all_channels()
@@ -305,6 +318,225 @@ async def list_templates(ctx: commands.Context):
     embed.add_field(name="Templates", value=names, inline=False)
     embed.add_field(name="Salons configurés", value=channels, inline=False)
     await ctx.send(embed=embed)
+
+
+VIDEO_CONTENT_TYPES = ("video/mp4", "video/quicktime")
+VIDEO_EXTENSIONS = (".mp4", ".mov", ".m4v")
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def _looks_like_video(attachment: discord.Attachment) -> bool:
+    if attachment.content_type and attachment.content_type.split(";")[0] in VIDEO_CONTENT_TYPES:
+        return True
+    return attachment.filename.lower().endswith(VIDEO_EXTENSIONS)
+
+
+def _looks_like_image(attachment: discord.Attachment) -> bool:
+    if attachment.content_type and attachment.content_type.startswith("image/"):
+        return True
+    return attachment.filename.lower().endswith(IMAGE_EXTENSIONS)
+
+
+@bot.tree.command(
+    name="videoinfo",
+    description="Affiche les métadonnées d'identité présentes dans une vidéo (avant nettoyage).",
+)
+@app_commands.describe(video="Fichier vidéo (mp4/mov) à analyser")
+async def videoinfo_command(interaction: discord.Interaction, video: discord.Attachment):
+    if not _looks_like_video(video):
+        await interaction.response.send_message(
+            "Envoie un fichier `.mp4` ou `.mov`.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    import tempfile
+    from pathlib import Path
+
+    from video_metadata import (
+        VideoMetadataError,
+        collect_identity_tags,
+        probe_json,
+    )
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="videoinfo_"))
+    input_path = tmp_dir / video.filename
+    try:
+        await video.save(input_path)
+        probe = await bot.loop.run_in_executor(None, probe_json, input_path)
+        tags = collect_identity_tags(probe)
+    except VideoMetadataError as exc:
+        await interaction.followup.send(f"❌ {exc}", ephemeral=True)
+        return
+    finally:
+        import shutil
+
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    embed = discord.Embed(
+        title="🔍 Métadonnées détectées",
+        color=0xE67E22,
+    )
+    if tags:
+        body = "\n".join(f"• `{k}` = `{v}`" for k, v in list(tags.items())[:20])
+        embed.add_field(name=f"{len(tags)} champ(s) trouvé(s)", value=body[:1024], inline=False)
+    else:
+        embed.add_field(
+            name="Aucune métadonnée d'identité trouvée",
+            value="Le fichier semble déjà propre (ou déjà re-encodé par une plateforme).",
+            inline=False,
+        )
+    embed.set_footer(text="Utilise /cleanvideo pour nettoyer + varier ce fichier.")
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(
+    name="cleanvideo",
+    description="Supprime les métadonnées d'identité et applique une variation subtile à une vidéo.",
+)
+@app_commands.describe(
+    video="Fichier vidéo (mp4/mov) à nettoyer",
+    variation="Appliquer aussi une variation visuelle subtile (zoom/couleur/vitesse) — recommandé",
+)
+async def cleanvideo_command(
+    interaction: discord.Interaction,
+    video: discord.Attachment,
+    variation: bool = True,
+):
+    if not _looks_like_video(video):
+        await interaction.response.send_message(
+            "Envoie un fichier `.mp4` ou `.mov`.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from clip_assembler import ClipAssemblyError, prepare_for_discord_upload
+    from video_metadata import VideoMetadataError, clean_and_vary_video, variation_summary
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="cleanvideo_"))
+    input_path = tmp_dir / video.filename
+    output_path = tmp_dir / "cleaned.mp4"
+
+    try:
+        await video.save(input_path)
+
+        result = await bot.loop.run_in_executor(
+            None,
+            lambda: clean_and_vary_video(
+                input_path, output_path, apply_variation=variation
+            ),
+        )
+
+        final_path = await bot.loop.run_in_executor(
+            None, prepare_for_discord_upload, result.output_path
+        )
+
+        embed = discord.Embed(title="✅ Vidéo nettoyée", color=0x57F287)
+        embed.add_field(
+            name="Métadonnées supprimées",
+            value=f"{len(result.tags_removed)} champ(s)" if result.tags_removed else "Aucune trouvée",
+            inline=True,
+        )
+        embed.add_field(
+            name="Taille",
+            value=f"{result.size_before // 1024} Ko → {final_path.stat().st_size // 1024} Ko",
+            inline=True,
+        )
+        if variation:
+            embed.add_field(
+                name="Variations appliquées",
+                value=variation_summary(result.variation),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="Variations",
+                value="Désactivées (nettoyage métadonnées uniquement)",
+                inline=False,
+            )
+
+        await interaction.followup.send(
+            embed=embed,
+            file=discord.File(final_path, filename=f"clean_{video.filename}"),
+            ephemeral=True,
+        )
+    except (VideoMetadataError, ClipAssemblyError) as exc:
+        await interaction.followup.send(f"❌ {exc}", ephemeral=True)
+    except discord.HTTPException as exc:
+        await interaction.followup.send(f"❌ Envoi Discord échoué : {exc}", ephemeral=True)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@bot.tree.command(
+    name="varyimage",
+    description="Crée une variation d'une image (recadrage/couleur, ou IA si FAL_KEY est configuré).",
+)
+@app_commands.describe(
+    image="Image à varier",
+    ai="Utiliser l'IA (fal.ai) si disponible plutôt que le recadrage/couleur local",
+)
+async def varyimage_command(
+    interaction: discord.Interaction,
+    image: discord.Attachment,
+    ai: bool = False,
+):
+    if not _looks_like_image(image):
+        await interaction.response.send_message(
+            "Envoie une image `.png` / `.jpg` / `.webp`.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    import random
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from PIL import Image
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="varyimage_"))
+    input_path = tmp_dir / image.filename
+    output_path = tmp_dir / "varied.png"
+
+    try:
+        await image.save(input_path)
+        img = await bot.loop.run_in_executor(None, lambda: Image.open(input_path).convert("RGB"))
+
+        from carousel.generate_carousel import _augment_ai, _augment_crop, _augment_grade
+
+        rng = random.Random()
+        method_used = "ai" if ai else "crop+grade"
+
+        def _run_augment():
+            if ai:
+                return _augment_ai(img, rng)
+            return _augment_grade(_augment_crop(img, rng), rng)
+
+        varied = await bot.loop.run_in_executor(None, _run_augment)
+        await bot.loop.run_in_executor(None, lambda: varied.save(output_path, quality=95))
+
+        embed = discord.Embed(
+            title="✅ Variation générée",
+            description=f"Méthode : `{method_used}`" + ("" if ai else " (locale, sans API)"),
+            color=0x57F287,
+        )
+        await interaction.followup.send(
+            embed=embed,
+            file=discord.File(output_path, filename=f"varied_{image.filename}"),
+            ephemeral=True,
+        )
+    except Exception as exc:
+        await interaction.followup.send(f"❌ {exc}", ephemeral=True)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def _validate_token(token: str) -> None:

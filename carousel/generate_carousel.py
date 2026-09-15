@@ -470,6 +470,51 @@ def _make_plant_overlay(size: tuple[int, int], rng: random.Random) -> Image.Imag
     return overlay
 
 
+def _ai_augment_enabled() -> bool:
+    """Opt-in gate: needs both FAL_KEY and CAROUSEL_AI_VARIATION=true in .env."""
+    flag = os.getenv("CAROUSEL_AI_VARIATION", "").strip().lower()
+    if flag not in ("1", "true", "yes", "on"):
+        return False
+    try:
+        from image_ai_variation import fal_configured
+
+        return fal_configured()
+    except ImportError:
+        return False
+
+
+def _augment_ai(img: Image.Image, rng: random.Random) -> Image.Image:
+    """
+    AI remix via fal.ai (Ideogram V3, low strength) — subtly regenerates
+    pixels/objects while keeping composition, on top of a color grade.
+    Falls back to crop+grade if FAL_KEY isn't configured or the call fails,
+    so a carousel render never breaks because of this.
+    """
+    import tempfile
+
+    try:
+        from image_ai_variation import ImageVariationError, remix_image_to_pil
+    except ImportError:
+        return _augment_grade(_augment_crop(img, rng), rng)
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        img.convert("RGB").save(tmp_path, format="PNG")
+        remixed = remix_image_to_pil(tmp_path, strength=rng.uniform(0.16, 0.3))
+        if remixed.size != img.size:
+            remixed = ImageOps.fit(remixed, img.size, Image.Resampling.LANCZOS)
+        return remixed
+    except ImageVariationError:
+        return _augment_grade(_augment_crop(img, rng), rng)
+    except Exception:
+        return _augment_grade(_augment_crop(img, rng), rng)
+    finally:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+
+
 def _augment_prop(img: Image.Image, rng: random.Random) -> Image.Image:
     """Add plant corner + optional light leak (keeps photo identity)."""
     base = img.convert("RGBA")
@@ -493,17 +538,26 @@ def _augment_prop(img: Image.Image, rng: random.Random) -> Image.Image:
 def resolve_augment(method: str | None = None) -> str:
     """
     Resolve augment for a carousel.
-    random (default) → pick one of crop|grade|grain|prop once for the whole set.
+    random (default) → pick one of crop|grade|grain|prop once for the whole
+    set. "ai" only joins that random pool when CAROUSEL_AI_VARIATION=true
+    and FAL_KEY are both set (see _ai_augment_enabled()); it can still be
+    requested explicitly at any time (falls back gracefully if unconfigured).
     """
     m = (method or DEFAULT_AUGMENT).lower().strip()
     if m in ("random", "rand", "auto", ""):
-        pick = random.choice(AUGMENT_METHODS)
-        return pick
+        pool = list(AUGMENT_METHODS)
+        if _ai_augment_enabled():
+            pool.append("ai")
+        return random.choice(pool)
     if m in ("none", "off"):
         return "none"
+    if m == "ai":
+        return "ai"
     if m in AUGMENT_METHODS:
         return m
-    raise ValueError(f"Unknown augment '{method}'. Choose: {', '.join(AUGMENT_METHODS)}, random, none")
+    raise ValueError(
+        f"Unknown augment '{method}'. Choose: {', '.join(AUGMENT_METHODS)}, ai, random, none"
+    )
 
 
 def apply_augment(
@@ -511,20 +565,23 @@ def apply_augment(
     method: str,
     seed: int | None = None,
 ) -> Image.Image:
-    """Apply one augment method. method: crop|grade|grain|prop|none."""
+    """Apply one augment method. method: crop|grade|grain|prop|ai|none."""
     method = (method or "none").lower().strip()
     if method in ("none", "", "off"):
         return img
     if method in ("random", "rand", "auto"):
-        method = random.choice(AUGMENT_METHODS)
-    if method not in AUGMENT_METHODS:
-        raise ValueError(f"Unknown augment '{method}'. Choose: {', '.join(AUGMENT_METHODS)}, none")
+        method = resolve_augment("random")
+    if method != "ai" and method not in AUGMENT_METHODS:
+        raise ValueError(
+            f"Unknown augment '{method}'. Choose: {', '.join(AUGMENT_METHODS)}, ai, none"
+        )
     rng = random.Random(seed if seed is not None else random.randint(0, 10_000_000))
     fn = {
         "crop": _augment_crop,
         "grade": _augment_grade,
         "grain": _augment_grain,
         "prop": _augment_prop,
+        "ai": _augment_ai,
     }[method]
     return fn(img, rng)
 
