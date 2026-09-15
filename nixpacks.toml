@@ -1,0 +1,6 @@
+# Ensure the real `ffmpeg` + `ffprobe` binaries are installed on Railway.
+# Without this, only the `imageio-ffmpeg` PyPI package's bundled ffmpeg is
+# available (no ffprobe), which the bot works around but is slower and
+# less reliable than the real system binaries.
+[phases.setup]
+nixPkgs = ["ffmpeg"]

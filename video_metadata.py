@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import subprocess
 import uuid
 from dataclasses import dataclass, field
@@ -77,6 +78,7 @@ class VariationParams:
     saturation: float
     contrast: float
     brightness: float
+    hue_deg: float
     noise_level: float
     speed: float
     start_trim: float
@@ -112,10 +114,11 @@ def _run(args: list[str], *, timeout: int = 900) -> None:
         raise VideoMetadataError("FFmpeg a expiré (vidéo trop longue ?).") from exc
 
 
-def probe_json(path: Path) -> dict:
+def _probe_via_ffprobe(path: Path) -> dict | None:
+    """Preferred path — structured JSON. Returns None if ffprobe isn't installed."""
     ffprobe = resolve_ffprobe_bin()
     if not ffprobe:
-        raise VideoMetadataError("ffprobe introuvable sur la machine du bot.")
+        return None
     proc = subprocess.run(
         [
             ffprobe,
@@ -130,11 +133,123 @@ def probe_json(path: Path) -> dict:
         timeout=60,
     )
     if proc.returncode != 0:
-        raise VideoMetadataError(f"ffprobe a échoué : {proc.stderr[-500:]}")
+        return None
     try:
         return json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        raise VideoMetadataError("Impossible de lire les infos de la vidéo.") from exc
+    except json.JSONDecodeError:
+        return None
+
+
+_STREAM_HEADER_RE = re.compile(
+    r"^\s*Stream #\d+:\d+.*?:\s*(Video|Audio|Subtitle|Data)\b(.*)$"
+)
+_DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+_DIMENSIONS_RE = re.compile(r"\b(\d{2,5})x(\d{2,5})\b")
+_TAG_LINE_RE = re.compile(r"^(\s+)([A-Za-z0-9_.\- ]+?)\s*:\s?(.*)$")
+
+
+def _probe_via_ffmpeg_stderr(path: Path) -> dict:
+    """
+    Fallback probing that only needs the `ffmpeg` binary (no ffprobe).
+    Parses the human-readable input analysis ffmpeg prints to stderr for
+    any `-i` invocation. Used automatically when ffprobe isn't installed
+    (e.g. the `imageio-ffmpeg` PyPI package only ships ffmpeg, not ffprobe).
+    """
+    ffmpeg_bin = resolve_ffmpeg_bin()
+    if not ffmpeg_bin:
+        raise VideoMetadataError("FFmpeg introuvable sur la machine du bot.")
+
+    proc = subprocess.run(
+        [ffmpeg_bin, "-hide_banner", "-i", str(path), "-f", "null", "-"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    stderr = proc.stderr or ""
+    lines = stderr.splitlines()
+
+    format_tags: dict[str, str] = {}
+    streams: list[dict] = []
+    duration = 0.0
+
+    scope: str | int | None = None
+    in_metadata = False
+    metadata_indent = 0
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Stop before ffmpeg re-declares streams/tags for the throwaway
+        # `-f null -` output — we only want the *input* file's own info.
+        if stripped.startswith("Output #") or stripped.startswith("Stream mapping"):
+            break
+
+        if stripped == "Metadata:":
+            in_metadata = True
+            metadata_indent = len(line) - len(line.lstrip(" "))
+            continue
+
+        if in_metadata:
+            indent = len(line) - len(line.lstrip(" "))
+            match = _TAG_LINE_RE.match(line)
+            if match and indent > metadata_indent:
+                key = match.group(2).strip()
+                value = match.group(3).strip()
+                if scope == "format" or scope is None:
+                    format_tags[key] = value
+                elif isinstance(scope, int) and 0 <= scope < len(streams):
+                    streams[scope]["tags"][key] = value
+                continue
+            in_metadata = False
+
+        if stripped.startswith("Input #"):
+            scope = "format"
+
+        dur_match = _DURATION_RE.search(line)
+        if dur_match and duration == 0.0:
+            hours, minutes, seconds = dur_match.groups()
+            duration = int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+        stream_match = _STREAM_HEADER_RE.match(line)
+        if stream_match:
+            codec_type = stream_match.group(1).lower()
+            rest = stream_match.group(2)
+            width = height = None
+            if codec_type == "video":
+                dim_match = _DIMENSIONS_RE.search(rest)
+                if dim_match:
+                    width, height = int(dim_match.group(1)), int(dim_match.group(2))
+            streams.append(
+                {
+                    "index": len(streams),
+                    "codec_type": codec_type,
+                    "width": width,
+                    "height": height,
+                    "tags": {},
+                }
+            )
+            scope = len(streams) - 1
+
+    if not streams and "No such file" in stderr:
+        raise VideoMetadataError("Fichier vidéo introuvable ou illisible.")
+
+    return {
+        "format": {"duration": str(duration), "tags": format_tags},
+        "streams": streams,
+    }
+
+
+def probe_json(path: Path) -> dict:
+    """
+    Probe a media file's format/streams/tags. Tries ffprobe first (richer,
+    exact JSON); falls back to parsing `ffmpeg -i` stderr when ffprobe isn't
+    installed on the host (e.g. Railway with only imageio-ffmpeg's bundled
+    ffmpeg binary).
+    """
+    result = _probe_via_ffprobe(path)
+    if result is not None:
+        return result
+    return _probe_via_ffmpeg_stderr(path)
 
 
 def collect_identity_tags(probe: dict) -> dict[str, str]:
@@ -172,17 +287,18 @@ def _duration(probe: dict) -> float:
 
 def _random_variation(rng: random.Random) -> VariationParams:
     return VariationParams(
-        zoom=rng.uniform(1.015, 1.05),
+        zoom=rng.uniform(1.02, 1.06),
         pan_x_ratio=rng.uniform(0.0, 1.0),
         pan_y_ratio=rng.uniform(0.0, 1.0),
         rotation_deg=rng.uniform(-0.45, 0.45),
-        saturation=rng.uniform(0.93, 1.09),
-        contrast=rng.uniform(0.95, 1.06),
-        brightness=rng.uniform(-0.035, 0.035),
+        saturation=rng.uniform(0.9, 1.12),
+        contrast=rng.uniform(0.94, 1.08),
+        brightness=rng.uniform(-0.05, 0.05),
+        hue_deg=rng.uniform(-6.0, 6.0),
         noise_level=rng.uniform(1.0, 3.0),
         speed=rng.uniform(0.985, 1.015),
-        start_trim=rng.uniform(0.0, 0.08),
-        end_trim=rng.uniform(0.04, 0.15),
+        start_trim=rng.uniform(0.05, 0.2),
+        end_trim=rng.uniform(0.1, 0.35),
         crf=rng.choice([19, 20, 21, 22, 23]),
         preset=rng.choice(["medium", "fast", "faster", "veryfast"]),
         audio_volume=rng.uniform(0.97, 1.03),
@@ -215,6 +331,7 @@ def _build_filters(
             f"contrast={variation.contrast:.4f}:"
             f"brightness={variation.brightness:.4f}"
         ),
+        f"hue=h={variation.hue_deg:.2f}:s=1",
         f"rotate={rot_rad:.5f}:fillcolor=black@0:ow=iw:oh=ih",
         f"scale={zoom_w}:{zoom_h}",
         f"crop={width}:{height}:{pan_x}:{pan_y}",
@@ -353,7 +470,9 @@ def clean_and_vary_video(
 def variation_summary(variation: VariationParams) -> str:
     return (
         f"Zoom {variation.zoom:.1%} · rotation {variation.rotation_deg:+.2f}° · "
-        f"saturation {variation.saturation:.0%} · contraste {variation.contrast:.0%} · "
+        f"teinte {variation.hue_deg:+.1f}° · saturation {variation.saturation:.0%} · "
+        f"contraste {variation.contrast:.0%} · luminosité {variation.brightness:+.2f} · "
+        f"coupe début {variation.start_trim:.2f}s / fin {variation.end_trim:.2f}s · "
         f"vitesse {variation.speed:.1%} · bruit {variation.noise_level:.1f} · "
         f"encodage crf{variation.crf}/{variation.preset}"
     )
