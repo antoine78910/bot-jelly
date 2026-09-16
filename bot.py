@@ -398,11 +398,13 @@ async def videoinfo_command(interaction: discord.Interaction, video: discord.Att
 @app_commands.describe(
     video="Fichier vidéo (mp4/mov) à nettoyer",
     variation="Appliquer aussi une variation visuelle subtile (zoom/couleur/vitesse) — recommandé",
+    iphone_signature="Injecter une signature 'filmé à l'iPhone 17 Pro, à l'instant' (recommandé)",
 )
 async def cleanvideo_command(
     interaction: discord.Interaction,
     video: discord.Attachment,
     variation: bool = True,
+    iphone_signature: bool = True,
 ):
     if not _looks_like_video(video):
         await interaction.response.send_message(
@@ -417,7 +419,12 @@ async def cleanvideo_command(
     from pathlib import Path
 
     from clip_assembler import ClipAssemblyError, prepare_for_discord_upload
-    from video_metadata import VideoMetadataError, clean_and_vary_video, variation_summary
+    from video_metadata import (
+        VideoMetadataError,
+        clean_and_vary_video,
+        inject_iphone_signature,
+        variation_summary,
+    )
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="cleanvideo_"))
     input_path = tmp_dir / video.filename
@@ -436,6 +443,11 @@ async def cleanvideo_command(
         final_path = await bot.loop.run_in_executor(
             None, prepare_for_discord_upload, result.output_path
         )
+
+        if iphone_signature:
+            final_path = await bot.loop.run_in_executor(
+                None, lambda: inject_iphone_signature(final_path)
+            )
 
         embed = discord.Embed(title="✅ Vidéo nettoyée", color=0x57F287)
         embed.add_field(
@@ -460,10 +472,17 @@ async def cleanvideo_command(
                 value="Désactivées (nettoyage métadonnées uniquement)",
                 inline=False,
             )
+        if iphone_signature:
+            embed.add_field(
+                name="Signature injectée",
+                value="📱 iPhone 17 Pro · iOS 27 · date fraîche (à l'instant)",
+                inline=False,
+            )
 
+        output_stem = Path(video.filename).stem
         await interaction.followup.send(
             embed=embed,
-            file=discord.File(final_path, filename=f"clean_{video.filename}"),
+            file=discord.File(final_path, filename=f"clean_{output_stem}{final_path.suffix}"),
             ephemeral=True,
         )
     except (VideoMetadataError, ClipAssemblyError) as exc:

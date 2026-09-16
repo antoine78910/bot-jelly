@@ -12,6 +12,12 @@ matching (TikTok/Meta re-encode everything server-side anyway); it just
 means the *file you upload* carries no extra identifying baggage and
 looks like a fresh, independent export rather than a duplicate.
 
+Optionally (inject_iphone_signature), the cleaned file can also carry a
+plausible "just recorded on an iPhone 17 Pro" signature (make/model/iOS
+version + a creation date a few minutes ago) instead of empty fields —
+same idea as the visual variation: every export looks like its own
+distinct, freshly-shot clip rather than a stripped/edited file.
+
 Fields known to carry identity in MP4/MOV containers (see docstring at
 IDENTITY_FIELDS_INFO below for the full research summary).
 """
@@ -24,6 +30,7 @@ import re
 import subprocess
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from clip_assembler import (
@@ -63,6 +70,12 @@ identical crop/color/timing, so they don't look like a copy-paste of each other.
 """
 
 MAX_INPUT_BYTES = 200 * 1024 * 1024  # 200 MB safety cap for processing on the bot host
+
+# "Freshly recorded on iPhone 17 Pro" signature (opt-in via spoof_device=True).
+# iOS 27.0 is the current release for iPhone 17 Pro as of writing this.
+IPHONE_MAKE = "Apple"
+IPHONE_MODEL = "iPhone 17 Pro"
+IPHONE_SOFTWARE = "27.0"
 
 
 class VideoMetadataError(ClipAssemblyError):
@@ -305,6 +318,26 @@ def _random_variation(rng: random.Random) -> VariationParams:
     )
 
 
+def _iphone_signature_metadata(rng: random.Random) -> dict[str, str]:
+    """
+    Build a plausible "just recorded on an iPhone 17 Pro" metadata set.
+    The recording moment is a few minutes before "now" (export delay),
+    matching how the Photos app timestamps a clip you just shot and are
+    now sharing.
+    """
+    now_local = datetime.now().astimezone()
+    recorded_local = now_local - timedelta(seconds=rng.uniform(25, 360))
+    recorded_utc = recorded_local.astimezone(timezone.utc)
+
+    return {
+        "creation_time": recorded_utc.strftime("%Y-%m-%dT%H:%M:%S.000000Z"),
+        "com.apple.quicktime.creationdate": recorded_local.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "com.apple.quicktime.make": IPHONE_MAKE,
+        "com.apple.quicktime.model": IPHONE_MODEL,
+        "com.apple.quicktime.software": IPHONE_SOFTWARE,
+    }
+
+
 def _build_filters(
     variation: VariationParams,
     *,
@@ -364,7 +397,12 @@ def clean_and_vary_video(
     """
     Strip identity metadata and (optionally) apply subtle re-encode
     variations. Always re-encodes (never stream-copies) so the encoder
-    signature also changes.
+    signature also changes. Output is always a clean, empty-metadata .mp4.
+
+    To make the result look like a fresh iPhone recording instead of a
+    metadata-free file, run inject_iphone_signature() on the result — it's
+    a separate, fast stream-copy pass so it survives any later Discord-size
+    compression (which would otherwise re-mux and drop injected tags).
     """
     if not ffmpeg_available():
         raise VideoMetadataError(
@@ -465,6 +503,77 @@ def clean_and_vary_video(
         variation=variation,
         has_audio=has_audio,
     )
+
+
+def inject_iphone_signature(
+    input_path: Path,
+    output_path: Path | None = None,
+    *,
+    seed: int | None = None,
+) -> Path:
+    """
+    Fast stream-copy remux (no re-encode) that writes a plausible "just
+    recorded on an iPhone 17 Pro, iOS 27" signature onto an already-clean
+    video: make/model/software + a creation date a few minutes ago.
+
+    Output is .mov — the container real iPhone recordings actually use,
+    and required for ffmpeg to write the com.apple.quicktime.* keys at
+    all (the mp4 muxer silently drops them). Run this as the LAST step,
+    after any Discord-size compression, since re-encoding/re-muxing again
+    afterwards would drop these tags.
+    """
+    if not ffmpeg_available():
+        raise VideoMetadataError(
+            "FFmpeg introuvable. Installe FFmpeg ou configure FFMPEG_PATH dans .env."
+        )
+    if not input_path.is_file():
+        raise VideoMetadataError("Fichier vidéo introuvable.")
+
+    if output_path is None:
+        output_path = input_path.with_name(f"{input_path.stem}_iphone.mov")
+    elif output_path.suffix.lower() != ".mov":
+        output_path = output_path.with_suffix(".mov")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    probe = probe_json(input_path)
+    has_audio = _has_audio(probe)
+
+    rng = random.Random(seed)
+    signature = _iphone_signature_metadata(rng)
+
+    args = ["-i", str(input_path), "-map", "0", "-c", "copy"]
+    args += ["-map_metadata", "-1", "-map_chapters", "-1"]
+    for key, value in signature.items():
+        args += ["-metadata", f"{key}={value}"]
+    args += [
+        "-metadata", "encoder=",
+        "-metadata:s:v:0", "handler_name=Core Media Video",
+        "-metadata:s:v:0", "encoder=",
+    ]
+    if has_audio:
+        args += [
+            "-metadata:s:a:0", "handler_name=Core Media Audio",
+            "-metadata:s:a:0", "encoder=",
+        ]
+    # bitexact stops the muxer from auto-writing its own "Lavf..." encoder
+    # signature over our explicit (empty) encoder tag above.
+    args += [
+        "-fflags", "+bitexact",
+        "-movflags", "+faststart+use_metadata_tags",
+        str(output_path),
+    ]
+
+    try:
+        _run(args, timeout=120)
+    except VideoMetadataError:
+        output_path.unlink(missing_ok=True)
+        raise
+
+    if not output_path.is_file() or output_path.stat().st_size < 1024:
+        output_path.unlink(missing_ok=True)
+        raise VideoMetadataError("Le remux iPhone a produit un fichier vide.")
+
+    return output_path
 
 
 def variation_summary(variation: VariationParams) -> str:
