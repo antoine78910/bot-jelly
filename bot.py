@@ -398,7 +398,7 @@ async def videoinfo_command(interaction: discord.Interaction, video: discord.Att
 @app_commands.describe(
     video="Fichier vidéo (mp4/mov) à nettoyer",
     variation="Appliquer aussi une variation visuelle subtile (zoom/couleur/vitesse) — recommandé",
-    iphone_signature="Injecter une signature 'filmé à l'iPhone 17 Pro, à l'instant' (recommandé)",
+    iphone_signature="Injecter une signature 'filmé à l'iPhone 15 Pro, à l'instant' (recommandé)",
 )
 async def cleanvideo_command(
     interaction: discord.Interaction,
@@ -475,7 +475,7 @@ async def cleanvideo_command(
         if iphone_signature:
             embed.add_field(
                 name="Signature injectée",
-                value="📱 iPhone 17 Pro · iOS 27 · date fraîche (à l'instant)",
+                value="📱 iPhone 15 Pro · iOS 26.3 · date fraîche (à l'instant)",
                 inline=False,
             )
 

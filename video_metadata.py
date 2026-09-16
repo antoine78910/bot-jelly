@@ -13,7 +13,7 @@ means the *file you upload* carries no extra identifying baggage and
 looks like a fresh, independent export rather than a duplicate.
 
 Optionally (inject_iphone_signature), the cleaned file can also carry a
-plausible "just recorded on an iPhone 17 Pro" signature (make/model/iOS
+plausible "just recorded on an iPhone 15 Pro" signature (make/model/iOS
 version + a creation date a few minutes ago) instead of empty fields —
 same idea as the visual variation: every export looks like its own
 distinct, freshly-shot clip rather than a stripped/edited file.
@@ -71,14 +71,12 @@ identical crop/color/timing, so they don't look like a copy-paste of each other.
 
 MAX_INPUT_BYTES = 200 * 1024 * 1024  # 200 MB safety cap for processing on the bot host
 
-# "Freshly recorded on iPhone 17 Pro" signature — field shapes calibrated
-# against real iPhone 15 Pro / iOS 26.3 exports in samples/ (make/model/
-# software/creationdate/handlers/encoder/language). GPS is intentionally
-# omitted (privacy). Model kept as 17 Pro as requested; structure matches
-# the real Apple Camera .MOV container.
+# "Freshly recorded on iPhone 15 Pro" signature — calibrated against real
+# iPhone 15 Pro / iOS 26.3 exports in samples/ (make/model/software/
+# creationdate/handlers/encoder/language). GPS intentionally omitted.
 IPHONE_MAKE = "Apple"
-IPHONE_MODEL = "iPhone 17 Pro"
-IPHONE_SOFTWARE = "27.0"
+IPHONE_MODEL = "iPhone 15 Pro"
+IPHONE_SOFTWARE = "26.3"
 
 
 class VideoMetadataError(ClipAssemblyError):
@@ -323,7 +321,7 @@ def _random_variation(rng: random.Random) -> VariationParams:
 
 def _iphone_signature_metadata(rng: random.Random) -> dict[str, str]:
     """
-    Build a plausible "just recorded on an iPhone 17 Pro" metadata set.
+    Build a plausible "just recorded on an iPhone 15 Pro" metadata set.
     Field names/shapes match real Apple Camera .MOV exports (see samples/).
     The recording moment is a few minutes before "now" (export delay).
     """
@@ -523,7 +521,7 @@ def inject_iphone_signature(
 ) -> Path:
     """
     Fast stream-copy remux (no re-encode) that writes a plausible "just
-    recorded on an iPhone 17 Pro, iOS 27" signature onto an already-clean
+    recorded on an iPhone 15 Pro, iOS 26.3" signature onto an already-clean
     video: make/model/software + a creation date a few minutes ago.
 
     Output is .mov — the container real iPhone recordings actually use,
