@@ -71,8 +71,11 @@ identical crop/color/timing, so they don't look like a copy-paste of each other.
 
 MAX_INPUT_BYTES = 200 * 1024 * 1024  # 200 MB safety cap for processing on the bot host
 
-# "Freshly recorded on iPhone 17 Pro" signature (opt-in via spoof_device=True).
-# iOS 27.0 is the current release for iPhone 17 Pro as of writing this.
+# "Freshly recorded on iPhone 17 Pro" signature — field shapes calibrated
+# against real iPhone 15 Pro / iOS 26.3 exports in samples/ (make/model/
+# software/creationdate/handlers/encoder/language). GPS is intentionally
+# omitted (privacy). Model kept as 17 Pro as requested; structure matches
+# the real Apple Camera .MOV container.
 IPHONE_MAKE = "Apple"
 IPHONE_MODEL = "iPhone 17 Pro"
 IPHONE_SOFTWARE = "27.0"
@@ -321,20 +324,27 @@ def _random_variation(rng: random.Random) -> VariationParams:
 def _iphone_signature_metadata(rng: random.Random) -> dict[str, str]:
     """
     Build a plausible "just recorded on an iPhone 17 Pro" metadata set.
-    The recording moment is a few minutes before "now" (export delay),
-    matching how the Photos app timestamps a clip you just shot and are
-    now sharing.
+    Field names/shapes match real Apple Camera .MOV exports (see samples/).
+    The recording moment is a few minutes before "now" (export delay).
     """
     now_local = datetime.now().astimezone()
     recorded_local = now_local - timedelta(seconds=rng.uniform(25, 360))
     recorded_utc = recorded_local.astimezone(timezone.utc)
+    # Real iPhones write creationdate like 2026-09-16T10:44:11+0700
+    # (offset without colon). Python %z already matches that on Windows.
+    creationdate = recorded_local.strftime("%Y-%m-%dT%H:%M:%S%z")
 
     return {
         "creation_time": recorded_utc.strftime("%Y-%m-%dT%H:%M:%S.000000Z"),
-        "com.apple.quicktime.creationdate": recorded_local.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "com.apple.quicktime.creationdate": creationdate,
         "com.apple.quicktime.make": IPHONE_MAKE,
         "com.apple.quicktime.model": IPHONE_MODEL,
         "com.apple.quicktime.software": IPHONE_SOFTWARE,
+        # Present on every real sample we probed; always 0 for normal clips.
+        "com.apple.quicktime.full-frame-rate-playback-intent": "0",
+        "major_brand": "qt  ",
+        "minor_version": "0",
+        "compatible_brands": "qt  ",
     }
 
 
@@ -541,24 +551,34 @@ def inject_iphone_signature(
     rng = random.Random(seed)
     signature = _iphone_signature_metadata(rng)
 
-    args = ["-i", str(input_path), "-map", "0", "-c", "copy"]
+    # Only A/V — real iPhones also embed several Core Media Metadata data
+    # tracks we can't recreate with a remux; mapping everything from an
+    # intermediate re-encode would just carry ffmpeg leftovers.
+    args = ["-i", str(input_path), "-map", "0:v:0", "-c", "copy"]
+    if has_audio:
+        args += ["-map", "0:a:0"]
     args += ["-map_metadata", "-1", "-map_chapters", "-1"]
     for key, value in signature.items():
         args += ["-metadata", f"{key}={value}"]
+    # Match real Camera.app stream tags (samples/IMG_526*.MOV).
+    # vendor_id on real iPhones is four NUL bytes — can't pass NULs via
+    # Windows argv. With +bitexact the mov muxer may stamp FFMP; without
+    # it Lavf leaks into the format encoder tag. Prefer no Lavf.
     args += [
         "-metadata", "encoder=",
         "-metadata:s:v:0", "handler_name=Core Media Video",
-        "-metadata:s:v:0", "encoder=",
+        "-metadata:s:v:0", "encoder=H.264",
+        "-metadata:s:v:0", "language=und",
     ]
     if has_audio:
         args += [
             "-metadata:s:a:0", "handler_name=Core Media Audio",
             "-metadata:s:a:0", "encoder=",
+            "-metadata:s:a:0", "language=und",
         ]
-    # bitexact stops the muxer from auto-writing its own "Lavf..." encoder
-    # signature over our explicit (empty) encoder tag above.
     args += [
         "-fflags", "+bitexact",
+        "-brand", "qt  ",
         "-movflags", "+faststart+use_metadata_tags",
         str(output_path),
     ]
