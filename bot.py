@@ -414,6 +414,7 @@ async def cleanvideo_command(
 
     await interaction.response.defer(ephemeral=True)
 
+    import random
     import shutil
     import tempfile
     from pathlib import Path
@@ -479,10 +480,18 @@ async def cleanvideo_command(
                 inline=False,
             )
 
-        output_stem = Path(video.filename).stem
+        # Real Camera.app exports are named IMG_####.MOV — avoid "clean_*"
+        # which looks like an edited/processed file.
+        import random as _random
+
+        if iphone_signature:
+            out_name = f"IMG_{_random.randint(1000, 9999)}.MOV"
+        else:
+            out_name = f"IMG_{_random.randint(1000, 9999)}{final_path.suffix}"
+
         await interaction.followup.send(
             embed=embed,
-            file=discord.File(final_path, filename=f"clean_{output_stem}{final_path.suffix}"),
+            file=discord.File(final_path, filename=out_name),
             ephemeral=True,
         )
     except (VideoMetadataError, ClipAssemblyError) as exc:
