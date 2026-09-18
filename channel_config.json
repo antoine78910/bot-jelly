@@ -5,7 +5,7 @@
   "creator_signup_log_channel": "1547101182680629268",
   "registration_log_channel": "",
   "discord_join_log_channel": "",
-  "content_generation_log_channel": "",
+  "content_generation_log_channel": "1546459928049356800",
   "notify_role_id": "",
   "notify_user_ids": ["1015244275354706002"],
   "clip_batch_size": 3,

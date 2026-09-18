@@ -9,7 +9,7 @@ from pathlib import Path
 
 import discord
 
-from notify_roles import notify_role_mention
+from notify_roles import notify_mentions, notify_role_mention
 
 CONFIG_PATH = Path(__file__).parent / "channel_config.json"
 
@@ -138,5 +138,9 @@ async def log_content_generation(
     embed.set_footer(text="Feed générateur de contenu")
     embed.timestamp = discord.utils.utcnow()
 
-    ping = notify_role_mention()
-    await channel.send(content=ping or None, embed=embed)
+    ping = notify_mentions()
+    await channel.send(
+        content=ping or None,
+        embed=embed,
+        allowed_mentions=discord.AllowedMentions(users=True, roles=True),
+    )
