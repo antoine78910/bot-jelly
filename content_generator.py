@@ -271,6 +271,7 @@ async def _generate_clips_for_user(
                         summary=recipe_summary(recipe),
                         delivery_mode=delivery_mode,
                         url=url,
+                        slide_paths=list(recipe.slides),
                     )
                 )
                 if delivery_mode == "external" and url:
@@ -279,8 +280,6 @@ async def _generate_clips_for_user(
                 errors.append(f"{clip_label} échoué : {exc}")
             except discord.HTTPException as exc:
                 errors.append(f"Impossible d’envoyer {clip_label.lower()} : {exc}")
-            finally:
-                cleanup_carousel_artifacts(recipe.job_dir)
 
         if external_links:
             await thread.send(
@@ -343,6 +342,11 @@ async def _generate_clips_for_user(
             )
         except Exception as exc:
             print(f"Content log failed for {member.id}: {exc}")
+
+    # Cleanup after staff log so slides can still be attached there.
+    if pending:
+        for recipe in pending:
+            cleanup_carousel_artifacts(recipe.job_dir)
 
     return created, errors, external_links
 

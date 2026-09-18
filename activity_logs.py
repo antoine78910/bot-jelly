@@ -68,6 +68,7 @@ class ClipOutput:
     summary: str
     delivery_mode: str
     url: str | None = None
+    slide_paths: list[Path] | None = None
 
 
 async def log_member_join(client: discord.Client, member: discord.Member) -> None:
@@ -144,3 +145,29 @@ async def log_content_generation(
         embed=embed,
         allowed_mentions=discord.AllowedMentions(users=True, roles=True),
     )
+
+    # Attach carousel slides in follow-up albums (one message per carousel).
+    for output in outputs:
+        paths = [p for p in (output.slide_paths or []) if p.is_file()]
+        if not paths:
+            continue
+        files = [
+            discord.File(path, filename=path.name)
+            for path in paths[:10]
+        ]
+        try:
+            await channel.send(
+                content=f"**{output.label}** — slides générées",
+                files=files,
+            )
+        except discord.HTTPException as exc:
+            print(f"Content log slides failed for {output.label}: {exc}")
+            # Fallback: at least show the first slide if the full album is too heavy.
+            if len(files) > 1 and paths[0].is_file():
+                try:
+                    await channel.send(
+                        content=f"**{output.label}** — slide 1 (album trop lourd)",
+                        file=discord.File(paths[0], filename=paths[0].name),
+                    )
+                except discord.HTTPException as nested:
+                    print(f"Content log slide preview failed for {output.label}: {nested}")
