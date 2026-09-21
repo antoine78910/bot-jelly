@@ -326,10 +326,17 @@ def _collect_images(directory: Path, recursive: bool = True) -> list[Path]:
 
 def _avatar_pack_dir(pack: str) -> Path:
     """Resolve avatar pack folder, e.g. femme_noir → assets/avatars/femme_noir."""
-    pack = (pack or DEFAULT_AVATAR_PACK).strip().lower().replace(" ", "_")
+    pack = (pack or DEFAULT_AVATAR_PACK).strip()
+    if not pack:
+        pack = DEFAULT_AVATAR_PACK
     specific = AVATARS_DIR / pack
     if specific.is_dir():
         return specific
+    normalized = pack.lower().replace(" ", "_")
+    if AVATARS_DIR.is_dir():
+        for path in AVATARS_DIR.iterdir():
+            if path.is_dir() and path.name.lower().replace(" ", "_") == normalized:
+                return path
     return AVATARS_DIR
 
 
@@ -338,6 +345,15 @@ def _list_avatar_packs() -> list[str]:
         return []
     packs = [p.name for p in sorted(AVATARS_DIR.iterdir()) if p.is_dir()]
     return packs
+
+
+def _pick_avatar_pack(rng: random.Random | None = None) -> str:
+    """Pick a random avatar pack folder under assets/avatars/."""
+    packs = _list_avatar_packs()
+    if not packs:
+        return DEFAULT_AVATAR_PACK
+    picker = rng if rng is not None else random
+    return picker.choice(packs)
 
 
 def _list_photo_packs() -> list[str]:

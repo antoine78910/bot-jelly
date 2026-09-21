@@ -38,19 +38,22 @@ def recipe_summary(recipe: CarouselRecipe) -> str:
 
 def assets_status() -> dict:
     from carousel.generate_carousel import (
+        AVATARS_DIR,
         CAPTIONS_FILE,
-        DEFAULT_AVATAR_PACK,
         PROJECT_ROOT,
-        _avatar_pack_dir,
         _collect_images,
         _collect_photos,
+        _list_avatar_packs,
     )
 
-    avatars = _collect_images(_avatar_pack_dir(DEFAULT_AVATAR_PACK))
+    packs = _list_avatar_packs()
+    # Count every pack so new folders under avatars/ are detected.
+    avatars = _collect_images(AVATARS_DIR) if AVATARS_DIR.is_dir() else []
     photos = _collect_photos(None)
     return {
         "root": str(PROJECT_ROOT),
         "avatars": len(avatars),
+        "avatar_packs": packs,
         "photos": len(photos),
         "captions": CAPTIONS_FILE.is_file(),
     }
@@ -58,8 +61,10 @@ def assets_status() -> dict:
 
 def assemble_carousel(*, seed: int, color: str = "pink") -> CarouselRecipe:
     from carousel.generate_carousel import (
+        DEFAULT_AVATAR_PACK,
         DEFAULT_COLOR,
         TIKTOK_STYLE,
+        _pick_avatar_pack,
         generate_type1_carousel,
     )
 
@@ -80,12 +85,15 @@ def assemble_carousel(*, seed: int, color: str = "pink") -> CarouselRecipe:
     job_dir.mkdir(parents=True, exist_ok=True)
 
     random.seed(seed)
+    avatar_pack = _pick_avatar_pack() if status.get("avatar_packs") else DEFAULT_AVATAR_PACK
+
     try:
         build = generate_type1_carousel(
             color=theme,
             set_index=0,
             output_dir=job_dir,
             quiet=True,
+            avatar_pack=avatar_pack,
         )
     except FileNotFoundError as exc:
         shutil.rmtree(job_dir, ignore_errors=True)
