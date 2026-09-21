@@ -192,6 +192,7 @@ async def _generate_clips_for_user(
     mode: str,
     count: int,
     progress_message: discord.WebhookMessage,
+    avatar_pack: str | None = None,
 ) -> tuple[int, list[str], list[str]]:
     from carousel_assembler import (
         CarouselAssemblyError,
@@ -234,7 +235,9 @@ async def _generate_clips_for_user(
         try:
             recipe = await asyncio.to_thread(
                 assemble_carousel,
-                seed=hash((member.id, index, progress_message.id)) & 0xFFFFFFFF,
+                seed=hash((member.id, index, progress_message.id, avatar_pack or ""))
+                & 0xFFFFFFFF,
+                avatar_pack=avatar_pack,
             )
             pending.append(recipe)
         except CarouselAssemblyError as exc:
@@ -370,6 +373,7 @@ async def _handle_clip_request(
     *,
     mode: str,
     count: int = 1,
+    avatar_pack: str | None = None,
 ) -> None:
     if not isinstance(interaction.channel, discord.TextChannel):
         await interaction.response.send_message(
@@ -385,7 +389,8 @@ async def _handle_clip_request(
         )
         return
 
-    await interaction.response.defer(ephemeral=True)
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=True)
 
     try:
         thread = await get_or_create_clips_thread(
@@ -415,10 +420,101 @@ async def _handle_clip_request(
         mode=mode,
         count=count,
         progress_message=progress_message,
+        avatar_pack=avatar_pack,
     )
 
     if errors:
         await _send_ephemeral_errors(interaction, errors)
+
+
+# User who can pick among all avatar packs (others stay on femme_noir).
+AVATAR_PICKER_USER_IDS = {1015244275354706002}
+
+AVATAR_PACK_LABELS = {
+    "femme_noir": "Femme noir",
+    "femme_noir_2": "Femme noir 2",
+    "rousse": "Rousse",
+    "tisme_sucre": "Tisme sucré",
+}
+
+
+def _can_pick_avatar_pack(user_id: int) -> bool:
+    return user_id in AVATAR_PICKER_USER_IDS
+
+
+def _avatar_pack_options() -> list[discord.SelectOption]:
+    from carousel.generate_carousel import DEFAULT_AVATAR_PACK, _list_avatar_packs
+
+    packs = _list_avatar_packs() or [DEFAULT_AVATAR_PACK]
+    options: list[discord.SelectOption] = []
+    for pack in packs:
+        label = AVATAR_PACK_LABELS.get(pack, pack.replace("_", " ").title())
+        options.append(
+            discord.SelectOption(
+                label=label[:100],
+                value=pack,
+                description=f"Pack `{pack}`"[:100],
+                default=(pack == DEFAULT_AVATAR_PACK),
+            )
+        )
+    return options[:25]
+
+
+class AvatarPackSelect(discord.ui.Select):
+    def __init__(self, *, mode: str, count: int) -> None:
+        self.mode = mode
+        self.count = count
+        super().__init__(
+            placeholder="Choisis un pack d’avatars…",
+            min_values=1,
+            max_values=1,
+            options=_avatar_pack_options(),
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        pack = self.values[0]
+        # Disable the select after choice so it can't be reused.
+        self.disabled = True
+        if self.view is not None:
+            for item in self.view.children:
+                item.disabled = True
+            try:
+                await interaction.response.edit_message(
+                    content=f"Pack sélectionné : **{AVATAR_PACK_LABELS.get(pack, pack)}** — génération…",
+                    view=self.view,
+                )
+            except discord.HTTPException:
+                if not interaction.response.is_done():
+                    await interaction.response.defer(ephemeral=True)
+        await _handle_clip_request(
+            interaction,
+            mode=self.mode,
+            count=self.count,
+            avatar_pack=pack,
+        )
+
+
+class AvatarPackPickView(discord.ui.View):
+    def __init__(self, *, mode: str, count: int = 1) -> None:
+        super().__init__(timeout=180)
+        self.add_item(AvatarPackSelect(mode=mode, count=count))
+
+
+async def _prompt_or_generate(
+    interaction: discord.Interaction,
+    *,
+    mode: str,
+    count: int = 1,
+) -> None:
+    """Staff can pick an avatar pack; everyone else always uses femme_noir."""
+    if _can_pick_avatar_pack(interaction.user.id):
+        await interaction.response.send_message(
+            "Choisis le pack d’avatars pour ce carrousel :",
+            view=AvatarPackPickView(mode=mode, count=count),
+            ephemeral=True,
+        )
+        return
+    await _handle_clip_request(interaction, mode=mode, count=count, avatar_pack=None)
 
 
 class BatchGenerateModal(discord.ui.Modal, title="Générer un lot"):
@@ -448,7 +544,7 @@ class BatchGenerateModal(discord.ui.Modal, title="Générer un lot"):
             )
             return
 
-        await _handle_clip_request(interaction, mode="batch", count=count)
+        await _prompt_or_generate(interaction, mode="batch", count=count)
 
 
 class ContentGeneratorView(discord.ui.View):
@@ -466,7 +562,7 @@ class ContentGeneratorView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ) -> None:
-        await _handle_clip_request(interaction, mode="single", count=1)
+        await _prompt_or_generate(interaction, mode="single", count=1)
 
     @discord.ui.button(
         label="Générer un lot",

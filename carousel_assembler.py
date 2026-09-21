@@ -59,12 +59,16 @@ def assets_status() -> dict:
     }
 
 
-def assemble_carousel(*, seed: int, color: str = "pink") -> CarouselRecipe:
+def assemble_carousel(
+    *,
+    seed: int,
+    color: str = "pink",
+    avatar_pack: str | None = None,
+) -> CarouselRecipe:
     from carousel.generate_carousel import (
         DEFAULT_AVATAR_PACK,
         DEFAULT_COLOR,
         TIKTOK_STYLE,
-        _pick_avatar_pack,
         generate_type1_carousel,
     )
 
@@ -84,16 +88,17 @@ def assemble_carousel(*, seed: int, color: str = "pink") -> CarouselRecipe:
     job_dir = CAROUSEL_ROOT / "output" / uuid.uuid4().hex
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    random.seed(seed)
-    avatar_pack = _pick_avatar_pack() if status.get("avatar_packs") else DEFAULT_AVATAR_PACK
+    # Everyone defaults to femme_noir. Staff can pass another pack explicitly.
+    chosen_pack = (avatar_pack or DEFAULT_AVATAR_PACK).strip() or DEFAULT_AVATAR_PACK
 
+    random.seed(seed)
     try:
         build = generate_type1_carousel(
             color=theme,
             set_index=0,
             output_dir=job_dir,
             quiet=True,
-            avatar_pack=avatar_pack,
+            avatar_pack=chosen_pack,
         )
     except FileNotFoundError as exc:
         shutil.rmtree(job_dir, ignore_errors=True)
