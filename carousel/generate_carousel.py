@@ -377,18 +377,21 @@ def _is_feminine_only_photo(path: Path) -> bool:
     return bool(_FEMININE_PHOTO_RE.match(stem))
 
 
+_MALE_AVATAR_PREFIXES = ("homme", "tisme", "tismey")
+
+
 def _is_feminine_avatar_pack(pack: str | None) -> bool:
-    name = (pack or "").strip().lower().replace(" ", "_")
+    name = (pack or "").strip().lower().replace(" ", "_").replace("é", "e")
     if not name:
         return True
-    return not name.startswith("homme")
+    return not name.startswith(_MALE_AVATAR_PREFIXES)
 
 
 def _collect_photos(pack: str | None = None, *, avatar_pack: str | None = None) -> list[Path]:
     """Slides 2+ : one pack, or every pack under assets/photos/ (random mix).
 
-    Photos whose stem ends with digits + ``f`` are skipped unless the avatar
-    pack is feminine (anything that does not start with ``homme``).
+    Photos whose stem ends with digits + ``f`` are skipped for male avatar
+    packs (``homme*`` and ``tisme*`` / tismey).
     """
     if pack:
         photos = _collect_images(PHOTOS_DIR / pack)

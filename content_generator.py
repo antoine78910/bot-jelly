@@ -434,7 +434,7 @@ AVATAR_PACK_LABELS = {
     "femme_noir": "Femme noir",
     "femme_noir_2": "Femme noir 2",
     "rousse": "Rousse",
-    "tisme_sucre": "Tisme sucré",
+    "tisme_sucre": "Tisme sucré (homme)",
     "homme_blanc": "Homme blanc",
 }
 
