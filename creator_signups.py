@@ -277,3 +277,90 @@ async def handle_signup_webhook(client: discord.Client, payload: dict[str, Any])
 
     await log_creator_signup(client, signup)
     return True
+
+
+@dataclass
+class CreatorApplicationNotice:
+    application_id: str
+    first_name: str
+    email: str
+    country: str
+    platforms: str
+    handles: str
+    submitted_at: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> CreatorApplicationNotice:
+        record = payload.get("record") if isinstance(payload.get("record"), dict) else payload
+        handles: list[str] = []
+        if record.get("tiktok_handle"):
+            handles.append(f"TikTok: {record['tiktok_handle']}")
+        if record.get("instagram_handle"):
+            handles.append(f"Instagram: {record['instagram_handle']}")
+        platforms = []
+        if record.get("tiktok_handle"):
+            platforms.append("TikTok")
+        if record.get("instagram_handle"):
+            platforms.append("Instagram")
+        return cls(
+            application_id=str(record.get("creator_application_id") or "unknown"),
+            first_name=str(record.get("first_name") or "—").strip() or "—",
+            email=str(record.get("email") or "—").strip() or "—",
+            country=str(record.get("country") or "—").strip() or "—",
+            platforms=", ".join(platforms) or "—",
+            handles="\n".join(handles) or "—",
+            submitted_at=str(record.get("updated_at") or record.get("created_at") or "") or None,
+        )
+
+
+def build_application_embed(notice: CreatorApplicationNotice) -> discord.Embed:
+    embed = discord.Embed(
+        title="Creator application completed",
+        description="Someone finished the JobShift /creators/apply form.",
+        color=0x2EC4B6,
+    )
+    embed.add_field(name="Name", value=notice.first_name, inline=True)
+    embed.add_field(name="Email", value=notice.email, inline=True)
+    embed.add_field(name="Country", value=notice.country, inline=True)
+    embed.add_field(name="Platforms", value=notice.platforms, inline=True)
+    embed.add_field(name="Handles", value=notice.handles[:1024], inline=False)
+    embed.add_field(name="Application ID", value=f"`{notice.application_id}`", inline=False)
+    if notice.submitted_at:
+        embed.add_field(name="Submitted at", value=notice.submitted_at, inline=False)
+    embed.set_footer(text="JobShift Creators · apply form")
+    embed.timestamp = discord.utils.utcnow()
+    return embed
+
+
+async def log_creator_application(
+    client: discord.Client,
+    notice: CreatorApplicationNotice,
+) -> discord.Message | None:
+    channel = _signup_log_channel(client)
+    if channel is None:
+        print(f"Creator application log channel {signup_log_channel_id()} not found")
+        return None
+
+    ping = notify_mentions()
+    return await channel.send(
+        content=ping or f"New creator application finished: **{notice.first_name}**",
+        embed=build_application_embed(notice),
+        allowed_mentions=discord.AllowedMentions(users=True, roles=True),
+    )
+
+
+async def handle_application_webhook(client: discord.Client, payload: dict[str, Any]) -> bool:
+    event_type = payload.get("type")
+    if event_type and event_type not in (
+        "CREATOR_APPLICATION_COMPLETED",
+        "INSERT",
+        "UPDATE",
+    ):
+        return False
+
+    notice = CreatorApplicationNotice.from_payload(payload)
+    if notice.application_id == "unknown" and notice.email == "—" and notice.first_name == "—":
+        return False
+
+    await log_creator_application(client, notice)
+    return True

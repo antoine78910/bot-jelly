@@ -1,7 +1,8 @@
 # One line = one pâté. | = line break inside a pâté.
-# ! = white box / black text.  !!segment = white text on pink.
+# ! = white box / black text.  !!segment = white text on the pâté color.
+# ^ = pin this pâté to the top.  ~ = small badge.
 # {{a|b|c}} = pick one at random (~10–20% wording variation).
-# # style: routine|etape  → keeps slides 2–4 coherent (same family).
+# # style: routine|etape|template2  → keeps slides 1–4 coherent (same family).
 # Sections: === hooks === (1)  === method === (2)  === jellyjob === (3)  === recap === (4)
 # Refs: assets/references/hooks/  assets/references/method/
 
@@ -141,3 +142,79 @@ C'est aussi simple que ça|d'{{optimiser|maximiser}} {{ces|tes}} chances|{{au ma
 !Tu as la méthode :|Google Jobs → JobShift →|candidatures {{fraîches|du jour}}
 !Une offre récente + un CV|{{dédié|optimisé ATS}} =|{{beaucoup|énormément}} plus de|chances d'être rappelé
 !Aussi simple que ça 🤨
+
+=== hooks ===
+
+# style: template2
+# Template 2 — badge collé en haut, accroche dans le bas. Ref: ascenseur / édition rentrée.
+^~{{(Édition rentrée 2026)|Édition rentrée 2026}}
+POV : {{Je ne suis plus RH|je ne suis plus RH,}}|{{donc je peux me le|du coup, je peux me le}}|permettre 😂
+{{Voici la meilleure|Voilà la meilleure}}|{{stratégie pour trouver un|stratégie pour décrocher un}}|{{emploi|job}}
+
+---
+
+# style: template2
+^~{{(Édition rentrée 2026)|(Rentrée 2026)}}
+POV : {{Je ne suis plus en RH|Je ne suis plus RH}}|{{donc, je peux me le|alors je peux me le}}|{{permettre|permettre,}} 😂
+{{Voici la meilleure|C'est la meilleure}}|{{stratégie pour trouver|façon de trouver}}|un {{emploi|job}}
+
+=== method ===
+
+# style: template2
+# Template 2 — #1# Google Emploi. Pâtés centrés, nom du produit en blanc.
+~#1#
+{{Il faut arrêter de|Faut arrêter de}}|chercher des offres|d'emploi sur {{plein de|trop de}}|sites {{différents|séparés}} tels que|LinkedIn, Indeed, etc.
+{{Utilise seulement|Utilise uniquement}}
+!{{Google Emploi|Google Jobs}}
+{{C'est un site qui regroupe|Ce site regroupe}}|{{toutes les|quasiment toutes les}} offres d'emploi|{{dispos|disponibles}} sur le web au même|endroit, {{plus de perte de|fini la perte de}}|temps et d'opportunités
+({{Ne pas oublier|N'oublie pas}} le filtre|« {{dernières 24h|dernières 24 heures}} », pour|voir {{seulement|uniquement}} les offres|qui {{viennent d'être|viennent juste d'être}}|publiées)
+
+---
+
+# style: template2
+~#1#
+{{Arrête de chercher|Il faut stopper}}|des offres d'emploi|sur {{plusieurs|plein de}} sites|{{différents,|à la fois,}}|{{comme|tels que}} LinkedIn, Indeed, etc.
+{{Utilise seulement|Passe seulement par}}
+!{{Google Emploi|Google Jobs}}
+{{Un seul endroit|Tout est au même endroit}} :|il {{regroupe|réunit}} les offres|d'emploi {{dispos|disponibles}} sur le web,|{{plus de temps perdu|sans perdre de temps}}|{{ni d'opportunités|et sans rater d'offres}}
+({{Pense au filtre|Active le filtre}}|« {{dernières 24h|24 dernières heures}} »|pour ne voir que les|offres {{fraîches|qui viennent de sortir}})
+
+=== jellyjob ===
+
+# style: template2
+# Template 2 — #2#. L'emplacement CVgood.dev devient JobShift.
+~#2#
+{{Il faut absolument envoyer|Faut absolument envoyer}}|un CV {{optimisé ATS|optimisé pour les ATS}},|{{adapté à l'offre d'emploi|adapté à l'annonce}}
+{{Utilise absolument|Utilise vraiment}}
+!JobShift
+{{Avant d'envoyer une|Avant chaque}}|{{candidature|candidature,}}
+{{C'est le Tinder des jobs|C'est un Tinder pour les jobs}} :|tu {{swipes à droite|swipe à droite}},|et ça {{postule tout seul|postule automatiquement}}
+{{Tu peux envoyer|Ça envoie}} {{100 à 200|100-200}}|candidatures {{directement|direct}}|sur les ATS, avec un CV|{{optimisé pour passer|déjà optimisé pour}}|les filtres
+{{Puis tu suis tout|Et le suivi se fait}}|{{dans l'inbox|via l'inbox}},|{{directement|au même endroit}}
+
+---
+
+# style: template2
+~#2#
+{{Il faut envoyer|Envoie absolument}} un CV|{{optimisé ATS et|taillé ATS, et}}|{{adapté au poste|adapté à l'offre}}
+{{Utilise absolument|Passe absolument par}}
+!JobShift
+{{Avant de postuler|Juste avant de postuler}}
+{{C'est le Tinder des jobs|Un Tinder des jobs, en vrai}} :|{{swipe à droite|à droite}}, ça postule|{{automatiquement|tout seul}}
+{{100 à 200|Entre 100 et 200}}|candidatures partent|{{direct sur les ATS|sur les ATS, direct}},|CV {{optimisé pour|calibré pour passer}}|les filtres ATS
+{{Tu suis les retours|Le suivi des retours}}|{{dans l'inbox|se fait dans l'inbox}},|{{sans changer d'appli|directement}}
+
+=== recap ===
+
+# style: template2
+# Template 2 — 3 pâtés centrés, plus d'air en haut et en bas que sur #1# / #2#.
+{{Aussi simple que ça|Aussi simple que ça.}}
+{{Envoie une candidature|Envoie une candidature,}}|{{adaptée|ciblée}} à une offre|d'emploi {{fraîche|récente}}, et {{t'as|tu as}}|{{toutes tes chances au|tes chances au}}|maximum 🤔
+{{N'écoutez pas|N'écoute pas}} les vendeurs|de formations qui|{{compliquent tout|compliquent tout.}}
+
+---
+
+# style: template2
+{{C'est aussi simple que ça|Aussi simple que ça}}
+{{Une candidature adaptée|Postule avec un CV adapté}}|à une offre {{fraîche|toute récente}},|et {{t'as toutes tes chances|tu mets tes chances au max}} 🤔
+{{N'écoutez pas les vendeurs|Écoute pas les vendeurs}}|{{de formations|de formations,}} qui|{{compliquent tout|rendent ça compliqué}}

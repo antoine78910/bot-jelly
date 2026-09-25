@@ -89,8 +89,19 @@ TIKTOK_STYLE = {
         "emphasis_bg": (255, 255, 255),
         "emphasis_text": (0, 0, 0),
     },
+    "cream": {
+        # Template 2 — pastilles beurre + texte brun, produit en blanc
+        "box_bg": (246, 224, 150),
+        "box_text": (139, 90, 36),
+        "highlight_text": (255, 255, 255),
+        "emphasis_bg": (255, 255, 255),
+        "emphasis_text": (17, 17, 17),
+    },
 }
 DEFAULT_COLOR = "pink"
+# Template 2 (édition rentrée) uses the cream pills from the reference.
+PAIR_STYLE_COLOR = {"template2": "cream"}
+BADGE_FONT_SIZE = 42
 
 # Layout — continuous stepped pâté: each line hugs text, one surface per block
 SIDE_MARGIN = 48
@@ -768,17 +779,42 @@ def _apply_variations(text: str) -> str:
     return _CHOICE_RE.sub(pick, text)
 
 
-def _parse_caption_block(raw: str) -> list[tuple[str, bool]]:
-    lines: list[tuple[str, bool]] = []
+def _caption_fields(item: tuple) -> tuple[str, bool, bool, bool]:
+    """(text, emphasis, pin_top, small). Older 2-tuples still work."""
+    text = item[0]
+    emphasis = bool(item[1]) if len(item) > 1 else False
+    pin_top = bool(item[2]) if len(item) > 2 else False
+    small = bool(item[3]) if len(item) > 3 else False
+    return text, emphasis, pin_top, small
+
+
+def _parse_caption_block(raw: str) -> list[tuple[str, bool, bool, bool]]:
+    """
+    Prefixes, in any order, before the text:
+      ^  pin this pâté to the top (rest stays centered below)
+      ~  small badge
+      !  white box / black text (not !! white-on-color)
+    """
+    lines: list[tuple[str, bool, bool, bool]] = []
     for ln in raw.strip().splitlines():
         ln = ln.strip()
         if not ln or ln.startswith("#"):
             continue
-        # ! at start of a pâté = white box / black text (not !! white-on-pink)
+        pin_top = False
+        small = False
+        while ln[:1] in "^~":
+            if ln.startswith("^"):
+                pin_top = True
+            else:
+                small = True
+            ln = ln[1:].strip()
+        emphasis = False
         if ln.startswith("!") and not ln.startswith("!!"):
-            lines.append((_apply_variations(ln[1:].strip()), True))
-        else:
-            lines.append((_apply_variations(ln), False))
+            emphasis = True
+            ln = ln[1:].strip()
+        if not ln:
+            continue
+        lines.append((_apply_variations(ln), emphasis, pin_top, small))
     return lines
 
 
@@ -900,16 +936,17 @@ def _pick_paired_slides() -> tuple[
 ]:
     """
     Pick one coherent style for slides 2–4:
-      routine → Google 8h00–8h10 + JobShift 8h10–8h15 + recap 8h15–8h20
-      etape   → #étape 1# + #étape 2# + récap blanc
+      routine  → Google 8h00–8h10 + JobShift 8h10–8h15 + recap 8h15–8h20
+      etape    → #étape 1# + #étape 2# + récap blanc
+      template2 → #1# Google Emploi + #2# JobShift + récap rentrée
     """
     method_by = _blocks_by_style("method")
     jellyjob_by = _blocks_by_style("jellyjob")
     recap_by = _blocks_by_style("recap")
-    styles = [
-        s for s in ("routine", "etape")
-        if method_by.get(s) and jellyjob_by.get(s) and recap_by.get(s)
-    ]
+    common = set(method_by) & set(jellyjob_by) & set(recap_by)
+    order = ("routine", "etape", "template2")
+    styles = [s for s in order if s in common]
+    styles += [s for s in common if s not in styles]
     if not styles:
         styles = [s for s in method_by if method_by[s]] or ["routine"]
     style = random.choice(styles)
@@ -945,8 +982,9 @@ def _layout_blocks(
     blocks: list[dict] = []
     num = len(caption_lines)
 
-    for block_idx, (text, emphasis) in enumerate(caption_lines):
-        size = _pick_font_size(text)
+    for block_idx, item in enumerate(caption_lines):
+        text, emphasis, pin_top, small = _caption_fields(item)
+        size = BADGE_FONT_SIZE if small else _pick_font_size(text)
         font = get_tiktok_font(size)
         inner_max = MAX_TEXT_WIDTH - PILL_PAD_X * 2
         wrapped = _wrap_block(text, font, size, inner_max)
@@ -991,6 +1029,7 @@ def _layout_blocks(
             "emoji_size": size,
             "bh": total_bh,
             "gap_after": gap_after,
+            "pin_top": pin_top,
         })
 
     return blocks
@@ -1031,36 +1070,25 @@ def _draw_pate_mask(bands: list[dict], y_start: int, radius: int) -> tuple[Image
     return mask, band_ys
 
 
-def draw_stacked_text_boxes(
-    img: Image.Image,
-    caption_lines: list[tuple[str, bool]],
+def _stack_height(blocks: list[dict]) -> int:
+    return sum(b["bh"] + b["gap_after"] for b in blocks)
+
+
+def _scale_blocks(blocks: list[dict], scale: float) -> None:
+    for b in blocks:
+        for band in b["bands"]:
+            band["bh"] = max(28, int(band["bh"] * scale))
+        b["bh"] = sum(band["bh"] for band in b["bands"]) - SEAM_OVERLAP * max(0, len(b["bands"]) - 1)
+        if b["gap_after"] > 0:
+            b["gap_after"] = max(10, int(b["gap_after"] * scale))
+
+
+def _paint_blocks(
+    overlay: Image.Image,
+    blocks: list[dict],
+    start_y: int,
     style: dict,
-) -> Image.Image:
-    """TikTok pâté: uniform pad, tight lines, round corners, centered — no artifacts."""
-    if not caption_lines:
-        return img
-
-    blocks = _layout_blocks(caption_lines)
-    total_h = sum(b["bh"] + b["gap_after"] for b in blocks)
-
-    usable_top = int(CANVAS_H * TOP_MARGIN)
-    usable_bottom = int(CANVAS_H * (1 - BOTTOM_MARGIN))
-    usable_h = usable_bottom - usable_top
-
-    if total_h > usable_h:
-        scale = usable_h / total_h
-        for b in blocks:
-            for band in b["bands"]:
-                band["bh"] = max(28, int(band["bh"] * scale))
-            b["bh"] = sum(band["bh"] for band in b["bands"]) - SEAM_OVERLAP * max(0, len(b["bands"]) - 1)
-            if b["gap_after"] > 0:
-                b["gap_after"] = max(10, int(b["gap_after"] * scale))
-        total_h = sum(b["bh"] + b["gap_after"] for b in blocks)
-
-    start_y = usable_top + max(0, (usable_h - total_h) // 2)
-
-    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-
+) -> tuple[Image.Image, int]:
     cy = start_y
     for b in blocks:
         if b["emphasis"]:
@@ -1089,6 +1117,52 @@ def draw_stacked_text_boxes(
             )
 
         cy += b["bh"] + b["gap_after"]
+    return overlay, cy
+
+
+def draw_stacked_text_boxes(
+    img: Image.Image,
+    caption_lines: list[tuple],
+    style: dict,
+) -> Image.Image:
+    """TikTok pâté: uniform pad, tight lines, round corners, centered — no artifacts.
+
+    A pâté marked pin_top (caption prefix ^) stays near the top. The rest is
+    centered in the space below it.
+    """
+    if not caption_lines:
+        return img
+
+    blocks = _layout_blocks(caption_lines)
+    pinned = [b for b in blocks if b.get("pin_top")]
+    body = [b for b in blocks if not b.get("pin_top")]
+
+    usable_top = int(CANVAS_H * TOP_MARGIN)
+    usable_bottom = int(CANVAS_H * (1 - BOTTOM_MARGIN))
+    usable_h = usable_bottom - usable_top
+    split_gap = int(CANVAS_H * 0.03) if pinned and body else 0
+
+    total_h = _stack_height(pinned) + _stack_height(body) + split_gap
+    if total_h > usable_h:
+        scale = usable_h / total_h
+        _scale_blocks(blocks, scale)
+        split_gap = max(8, int(split_gap * scale))
+
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    if pinned:
+        overlay, pin_end = _paint_blocks(overlay, pinned, usable_top, style)
+        body_top = pin_end + split_gap
+    else:
+        body_top = usable_top
+
+    body_h = _stack_height(body)
+    if pinned:
+        # Badge stays up top; the hook sits in the lower area, like the référence.
+        start_y = max(body_top, usable_bottom - body_h)
+    else:
+        body_room = max(0, usable_bottom - body_top)
+        start_y = body_top + max(0, (body_room - body_h) // 2)
+    overlay, _ = _paint_blocks(overlay, body, start_y, style)
 
     base = img.convert("RGBA")
     return Image.alpha_composite(base, overlay).convert("RGB")
@@ -1107,7 +1181,8 @@ def render_slide_with_text(
 
 def _caption_preview(lines: list[tuple[str, bool]]) -> str:
     parts: list[str] = []
-    for text, _emphasis in lines[:2]:
+    for item in lines[:2]:
+        text, _emphasis, _pin, _small = _caption_fields(item)
         clean = text.replace("|", " ").replace("!!", "").replace("!", "").strip()
         if clean:
             parts.append(clean[:48])
@@ -1136,7 +1211,6 @@ def generate_type1_carousel(
     """
     dest = Path(output_dir) if output_dir is not None else OUTPUT_DIR
     dest.mkdir(parents=True, exist_ok=True)
-    style = TIKTOK_STYLE.get(color, TIKTOK_STYLE[DEFAULT_COLOR])
 
     avatar_dir = _avatar_pack_dir(avatar_pack)
     avatars = _collect_images(avatar_dir)
@@ -1149,8 +1223,6 @@ def generate_type1_carousel(
             f"Slides 2–4 need STYLE photos — drop files in: {PHOTOS_DIR / 'study_work'}"
         )
 
-    if caption_lines is None:
-        caption_lines = _pick_caption_set("hooks")
     if method_lines is None or jellyjob_lines is None or recap_lines is None:
         pair_style, paired_method, paired_jellyjob, paired_recap = _pick_paired_slides()
         if method_lines is None:
@@ -1161,6 +1233,20 @@ def generate_type1_carousel(
             recap_lines = paired_recap
     else:
         pair_style = "custom"
+
+    mapped = PAIR_STYLE_COLOR.get(pair_style)
+    if mapped and mapped in TIKTOK_STYLE:
+        color = mapped
+    style = TIKTOK_STYLE.get(color, TIKTOK_STYLE[DEFAULT_COLOR])
+
+    if caption_lines is None:
+        hooks_by = _blocks_by_style("hooks")
+        if hooks_by.get(pair_style):
+            caption_lines = _pick_caption_set("hooks", style=pair_style)
+        elif hooks_by.get("routine"):
+            caption_lines = _pick_caption_set("hooks", style="routine")
+        else:
+            caption_lines = _pick_caption_set("hooks")
 
     # One effect for the whole carousel (random by default)
     aug = resolve_augment(augment)
@@ -1223,14 +1309,22 @@ def run_test(color: str = DEFAULT_COLOR) -> Path:
     hook_img.save(out_hook, quality=95)
     print(f"Test hook saved: {out_hook}")
 
-    for pair_style, seed in (("routine", 43), ("etape", 44)):
+    for pair_style, seed in (("routine", 43), ("etape", 44), ("template2", 45)):
         random.seed(seed)
+        theme = PAIR_STYLE_COLOR.get(pair_style, color)
+        pair_style_colors = TIKTOK_STYLE.get(theme, style)
         for role in ("method", "jellyjob", "recap"):
             lines = _pick_caption_set(role, style=pair_style)
-            img = render_slide_with_text(bg.copy(), lines, style)
+            img = render_slide_with_text(bg.copy(), lines, pair_style_colors)
             out = OUTPUT_DIR / f"test_{role}_{pair_style}.png"
             img.save(out, quality=95)
             print(f"Test {pair_style}/{role}: {out.name}")
+        if pair_style == "template2":
+            hook_lines = _pick_caption_set("hooks", style="template2")
+            hook_img2 = render_slide_with_text(bg.copy(), hook_lines, pair_style_colors)
+            out_hook2 = OUTPUT_DIR / "test_hooks_template2.png"
+            hook_img2.save(out_hook2, quality=95)
+            print(f"Test template2/hooks: {out_hook2.name}")
 
     return OUTPUT_DIR / "test_recap_routine.png"
 

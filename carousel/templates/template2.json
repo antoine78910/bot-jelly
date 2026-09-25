@@ -1,0 +1,208 @@
+{
+  "id": "template2",
+  "nom": "Édition rentrée 2026",
+  "canvas": { "w": 1080, "h": 1920, "ratio": "9:16" },
+  "note": "Le fond photo est ignoré : il est remplacé à la génération. Ce fichier sert au placement des sous-titres. Tout est centré horizontalement. Les pastilles se superposent en pâté (une ligne = une pastille, les lignes d'un même bloc se collent).",
+  "sous_titres": {
+    "align": "center",
+    "forme": "pastilles empilées",
+    "pastille": { "fond": "#F6E096", "texte": "#8B5A24" },
+    "produit": { "fond": "#FFFFFF", "texte": "#111111", "marqueur": "!" },
+    "badge": { "taille": "petite", "marqueur": "~" },
+    "epingler_en_haut": { "marqueur": "^" }
+  },
+  "slides": [
+    {
+      "index": 1,
+      "role": "hook",
+      "placement": "badge collé en haut (~6–12 %). Gros vide au milieu (visage). Les deux pâtés sont dans le bas (~55–92 %).",
+      "blocs": [
+        {
+          "id": "badge",
+          "pin": "top",
+          "petit": true,
+          "zone_y": [0.06, 0.13],
+          "lignes": ["(Édition rentrée 2026)"]
+        },
+        {
+          "id": "accroche",
+          "zone_y": [0.55, 0.74],
+          "lignes": [
+            "POV : Je ne suis plus RH",
+            "donc je peux me le",
+            "permettre 😂"
+          ]
+        },
+        {
+          "id": "promesse",
+          "zone_y": [0.76, 0.92],
+          "lignes": [
+            "Voici la meilleure",
+            "stratégie pour trouver un",
+            "emploi"
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "role": "method",
+      "placement": "Pile centrée qui remplit presque toute la hauteur, du haut (~18 %) jusqu'en bas (~97 %).",
+      "blocs": [
+        {
+          "id": "numero",
+          "petit": true,
+          "zone_y": [0.18, 0.24],
+          "lignes": ["#1#"]
+        },
+        {
+          "id": "probleme",
+          "zone_y": [0.26, 0.50],
+          "lignes": [
+            "Il faut arrêter de",
+            "chercher des offres",
+            "d'emploi sur plein de",
+            "sites différents tels que",
+            "LinkedIn, Indeed, etc."
+          ]
+        },
+        {
+          "id": "consigne",
+          "zone_y": [0.51, 0.55],
+          "lignes": ["Utilise seulement"]
+        },
+        {
+          "id": "produit",
+          "emphase": true,
+          "zone_y": [0.56, 0.61],
+          "lignes": ["Google Emploi"]
+        },
+        {
+          "id": "explication",
+          "zone_y": [0.62, 0.80],
+          "lignes": [
+            "C'est un site qui regroupe",
+            "toutes les offres d'emploi",
+            "dispos sur le web au même",
+            "endroit, plus de perte de",
+            "temps et d'opportunités"
+          ]
+        },
+        {
+          "id": "filtre",
+          "zone_y": [0.82, 0.97],
+          "lignes": [
+            "(Ne pas oublier le filtre",
+            "« dernières 24h », pour",
+            "voir seulement les offres",
+            "qui viennent d'être",
+            "publiées)"
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "role": "jellyjob",
+      "placement": "Même structure que la slide source (#2#, consigne, nom en blanc, pont, deux explications). La pile part tout en haut (~5 %) et va jusqu'en bas (~95 %).",
+      "remplacement": "La source disait CVgood.dev (« nouveau CV en 10 secondes »). Ce slot est JobShift : Tinder des jobs, swipe à droite = postule tout seul, 100 à 200 candidatures direct sur les ATS, CV optimisé pour passer les filtres, suivi dans l'inbox.",
+      "blocs": [
+        {
+          "id": "numero",
+          "petit": true,
+          "zone_y": [0.05, 0.09],
+          "lignes": ["#2#"]
+        },
+        {
+          "id": "regle",
+          "zone_y": [0.10, 0.22],
+          "lignes": [
+            "Il faut absolument envoyer",
+            "un CV optimisé ATS,",
+            "adapté à l'offre d'emploi"
+          ]
+        },
+        {
+          "id": "consigne",
+          "zone_y": [0.23, 0.27],
+          "lignes": ["Utilise absolument"]
+        },
+        {
+          "id": "produit",
+          "emphase": true,
+          "zone_y": [0.28, 0.33],
+          "lignes": ["JobShift"]
+        },
+        {
+          "id": "pont",
+          "zone_y": [0.34, 0.41],
+          "lignes": [
+            "Avant d'envoyer une",
+            "candidature"
+          ]
+        },
+        {
+          "id": "tinder",
+          "zone_y": [0.42, 0.62],
+          "lignes": [
+            "C'est le Tinder des jobs :",
+            "tu swipes à droite,",
+            "et ça postule tout seul"
+          ]
+        },
+        {
+          "id": "volume_ats",
+          "zone_y": [0.63, 0.82],
+          "lignes": [
+            "Tu peux envoyer 100 à 200",
+            "candidatures directement",
+            "sur les ATS, avec un CV",
+            "optimisé pour passer",
+            "les filtres"
+          ]
+        },
+        {
+          "id": "inbox",
+          "zone_y": [0.83, 0.95],
+          "lignes": [
+            "Puis tu suis tout",
+            "dans l'inbox,",
+            "directement"
+          ]
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "role": "recap",
+      "placement": "Trois pâtés groupés au centre, avec de l'air au-dessus (~28 %) et en dessous (~80 %). Moins dense que les slides 2 et 3.",
+      "blocs": [
+        {
+          "id": "ouverture",
+          "zone_y": [0.28, 0.36],
+          "lignes": ["Aussi simple que ça"]
+        },
+        {
+          "id": "action",
+          "zone_y": [0.38, 0.62],
+          "lignes": [
+            "Envoie une candidature",
+            "adaptée à une offre",
+            "d'emploi fraîche, et t'as",
+            "toutes tes chances au",
+            "maximum 🤔"
+          ]
+        },
+        {
+          "id": "mise_en_garde",
+          "zone_y": [0.66, 0.80],
+          "lignes": [
+            "N'écoutez pas les vendeurs",
+            "de formations qui",
+            "compliquent tout"
+          ]
+        }
+      ]
+    }
+  ]
+}

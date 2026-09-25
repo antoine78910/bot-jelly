@@ -482,12 +482,10 @@ async def cleanvideo_command(
 
         # Real Camera.app exports are named IMG_####.MOV — avoid "clean_*"
         # which looks like an edited/processed file.
-        import random as _random
-
         if iphone_signature:
-            out_name = f"IMG_{_random.randint(1000, 9999)}.MOV"
+            out_name = f"IMG_{random.randint(1000, 9999)}.MOV"
         else:
-            out_name = f"IMG_{_random.randint(1000, 9999)}{final_path.suffix}"
+            out_name = f"IMG_{random.randint(1000, 9999)}{final_path.suffix}"
 
         await interaction.followup.send(
             embed=embed,
