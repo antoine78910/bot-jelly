@@ -362,11 +362,41 @@ def _list_photo_packs() -> list[str]:
     return [p.name for p in sorted(PHOTOS_DIR.iterdir()) if p.is_dir()]
 
 
-def _collect_photos(pack: str | None = None) -> list[Path]:
-    """Slides 2+ : one pack, or every pack under assets/photos/ (random mix)."""
+_FEMININE_PHOTO_RE = re.compile(r".*\d+f$", re.IGNORECASE)
+_HEX_NAME_RE = re.compile(r"^[0-9a-f]+$", re.IGNORECASE)
+
+
+def _is_feminine_only_photo(path: Path) -> bool:
+    """Named files ending in digits + f (study_work_01f.png) are female avatars only.
+
+    Hash filenames are ignored even if they happen to end in hex ``f``.
+    """
+    stem = path.stem
+    if _HEX_NAME_RE.fullmatch(stem):
+        return False
+    return bool(_FEMININE_PHOTO_RE.match(stem))
+
+
+def _is_feminine_avatar_pack(pack: str | None) -> bool:
+    name = (pack or "").strip().lower().replace(" ", "_")
+    if not name:
+        return True
+    return not name.startswith("homme")
+
+
+def _collect_photos(pack: str | None = None, *, avatar_pack: str | None = None) -> list[Path]:
+    """Slides 2+ : one pack, or every pack under assets/photos/ (random mix).
+
+    Photos whose stem ends with digits + ``f`` are skipped unless the avatar
+    pack is feminine (anything that does not start with ``homme``).
+    """
     if pack:
-        return _collect_images(PHOTOS_DIR / pack)
-    return _collect_images(PHOTOS_DIR)
+        photos = _collect_images(PHOTOS_DIR / pack)
+    else:
+        photos = _collect_images(PHOTOS_DIR)
+    if _is_feminine_avatar_pack(avatar_pack):
+        return photos
+    return [path for path in photos if not _is_feminine_only_photo(path)]
 
 
 def _load_and_cover(path: Path, w: int, h: int) -> Image.Image:
@@ -1107,7 +1137,7 @@ def generate_type1_carousel(
 
     avatar_dir = _avatar_pack_dir(avatar_pack)
     avatars = _collect_images(avatar_dir)
-    photos = _collect_photos(photo_pack)
+    photos = _collect_photos(photo_pack, avatar_pack=avatar_pack)
 
     if not avatars:
         raise FileNotFoundError(f"Slide 1 needs an AVATAR — drop photos in: {avatar_dir}")
@@ -1270,7 +1300,7 @@ def main():
 
     avatar_dir = _avatar_pack_dir(args.avatar)
     avatars = _collect_images(avatar_dir)
-    photos = _collect_photos(args.photos)
+    photos = _collect_photos(args.photos, avatar_pack=args.avatar)
     packs = _list_avatar_packs()
     photo_packs = _list_photo_packs()
 
