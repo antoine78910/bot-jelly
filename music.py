@@ -16,6 +16,10 @@ MAIN_SOUND = {
 
 ALT_SOUNDS = [
     {
+        "label": "Original sound",
+        "url": "https://www.tiktok.com/music/original-sound-7595993188188310283",
+    },
+    {
         "label": "Bunna Summa",
         "url": "https://vm.tiktok.com/ZN9SDDoJbgHFd-82OiW/",
     },
