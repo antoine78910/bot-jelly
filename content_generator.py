@@ -134,11 +134,12 @@ async def find_clips_thread(
     guild = channel.guild
     if guild is not None:
         try:
-            active = await guild.fetch_active_threads()
-            for thread in active.threads:
+            # discord.py 2.4+ replaced fetch_active_threads() with active_threads().
+            active = await guild.active_threads()
+            for thread in active:
                 if thread.parent_id == channel.id and thread.name == name:
                     found[thread.id] = thread
-        except discord.HTTPException:
+        except (discord.HTTPException, AttributeError):
             pass
 
     for private in (False, True):
@@ -456,7 +457,8 @@ async def _handle_clip_request(
             interaction.user,
             mode=mode,
         )
-    except discord.HTTPException as exc:
+    except Exception as exc:
+        print(f"Clips thread failed: {exc}")
         await _show_status(interaction, f"❌ Impossible de créer ton fil carrousel : {exc}")
         return
 
