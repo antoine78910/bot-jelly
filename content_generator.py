@@ -274,8 +274,8 @@ async def _generate_clips_for_user(
                 carousel_style=carousel_style,
             )
             pending.append(recipe)
-            except Exception as exc:
-                errors.append(f"Carrousel {index + 1} échoué : {exc}")
+        except Exception as exc:
+            errors.append(f"Carrousel {index + 1} échoué : {exc}")
 
     created = 0
     external_links: list[str] = []
