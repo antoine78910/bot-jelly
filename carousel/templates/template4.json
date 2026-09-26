@@ -1,0 +1,121 @@
+{
+  "id": "template4",
+  "note": "Slide 1 = photo + titre blanc. Slides 2–4 = fond noir style Notes, même police. L'ordre, le nombre et les notes changent à chaque tirage. Les chiffres viennent des slides de référence ; les ajouts n'inventent pas de volume.",
+  "per_sector": {"min": 3, "max": 6},
+  "hooks": [
+    ["LES GRANDES ENTREPRISES", "QUI RECRUTENT MASSIVEMENT", "EN ALTERNANCE", "(2026)"],
+    ["OÙ TROUVER UNE ALTERNANCE", "DANS UNE GRANDE ENTREPRISE", "EN 2026"],
+    ["CES GRANDES BOÎTES", "RECRUTENT EN ALTERNANCE", "CETTE ANNÉE"],
+    ["ALTERNANCE 2026 :", "LES GROUPES QUI RECRUTENT", "ENCORE BEAUCOUP"]
+  ],
+  "sectors": [
+    {
+      "title": "Banque / Assurance",
+      "companies": [
+        {"name": "BNP Paribas"},
+        {"name": "Crédit Agricole"},
+        {"name": "LCL"},
+        {"name": "Société Générale"},
+        {"name": "BPCE (Banque Populaire & Caisse d'Épargne)"},
+        {"name": "Natixis"},
+        {"name": "Crédit Mutuel Alliance Fédérale"},
+        {"name": "La Banque Postale"},
+        {"name": "AXA"},
+        {"name": "Allianz France"},
+        {"name": "Generali France"},
+        {"name": "Groupama"},
+        {"name": "MAIF"},
+        {"name": "CNP Assurances"}
+      ]
+    },
+    {
+      "title": "Énergie / Industrie",
+      "companies": [
+        {"name": "EDF", "note": "environ 5 000 alternants en 2026"},
+        {"name": "Engie"},
+        {"name": "Enedis"},
+        {"name": "RTE"},
+        {"name": "TotalEnergies"},
+        {"name": "Orano"},
+        {"name": "Veolia"},
+        {"name": "Schneider Electric"},
+        {"name": "Saint-Gobain"},
+        {"name": "Vinci"},
+        {"name": "Bouygues"}
+      ]
+    },
+    {
+      "title": "Transport",
+      "companies": [
+        {"name": "SNCF", "note": "plus de 2 000 alternants"},
+        {"name": "RATP"},
+        {"name": "Air France"},
+        {"name": "Airbus"},
+        {"name": "Keolis"},
+        {"name": "Transdev"},
+        {"name": "CMA CGM"}
+      ]
+    },
+    {
+      "title": "Luxe",
+      "companies": [
+        {"name": "LVMH"},
+        {"name": "L'Oréal"},
+        {"name": "Hermès"},
+        {"name": "Kering"},
+        {"name": "Chanel"},
+        {"name": "Richemont"},
+        {"name": "Puig"}
+      ]
+    },
+    {
+      "title": "Grande distribution",
+      "companies": [
+        {"name": "Carrefour", "note": "recrute sur des centaines de métiers"},
+        {"name": "Lidl France"},
+        {"name": "Auchan"},
+        {"name": "E.Leclerc"},
+        {"name": "Decathlon"},
+        {"name": "Leroy Merlin"},
+        {"name": "Intermarché"},
+        {"name": "IKEA France"}
+      ]
+    },
+    {
+      "title": "Télécom / Numérique",
+      "companies": [
+        {"name": "Orange"},
+        {"name": "Capgemini"},
+        {"name": "Sopra Steria"},
+        {"name": "CGI"},
+        {"name": "IBM France"},
+        {"name": "Accenture"},
+        {"name": "Atos"},
+        {"name": "Dassault Systèmes"},
+        {"name": "Iliad (Free)"}
+      ]
+    },
+    {
+      "title": "Défense / Aéronautique",
+      "companies": [
+        {"name": "Thales"},
+        {"name": "Safran"},
+        {"name": "Dassault Aviation"},
+        {"name": "MBDA"},
+        {"name": "Naval Group"},
+        {"name": "Airbus Defence"}
+      ]
+    },
+    {
+      "title": "Services publics",
+      "companies": [
+        {"name": "La Poste", "note": "3 700 alternants en 2026"},
+        {"name": "France Travail"},
+        {"name": "Sécurité sociale"},
+        {"name": "URSSAF"},
+        {"name": "CAF"},
+        {"name": "Caisse des Dépôts"}
+      ]
+    }
+  ]
+}

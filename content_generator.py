@@ -64,8 +64,8 @@ def panel_embed() -> discord.Embed:
     return discord.Embed(
         title="🎬 Générateur de contenu",
         description=(
-            "Clique sur un bouton ci-dessous pour générer un carrousel unique "
-            "de 4 slides (accroche, Google, JobShift, récap).\n\n"
+            "Clique sur un bouton ci-dessous pour générer un carrousel "
+            "(accroche, méthode, ou liste d’entreprises).\n\n"
             "**Générer du contenu** — 1 carrousel\n"
             "**Générer un lot** — jusqu’à 5 carrousels (accroches, textes, CTA et photos différents)\n\n"
             "Chaque export mélange légendes, avatar, photos lifestyle et un effet visuel.\n\n"
@@ -83,8 +83,8 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
         description=(
             f"Salut {user.mention} — voici ton fil privé de posting.\n\n"
             f"Tu l’as ouvert via **{mode_label}**.\n\n"
-            "Tes carrousels apparaîtront ici en **un message de 4 photos**, "
-            "avec un bouton **Télécharger le ZIP** pour récupérer les 4 slides.\n\n"
+            "Tes carrousels apparaîtront ici en album photo, "
+            "avec un bouton **Télécharger le ZIP**.\n\n"
             "Prêt à poster en carrousel Instagram / TikTok."
         ),
         color=CONTENT_COLOR,
@@ -296,7 +296,9 @@ async def _generate_clips_for_user(
                 f"✅ Les **{created}** carrousel{'s' if created != 1 else ''} sont prêts."
             )
         elif created == 1:
-            await thread.send("✅ Carrousel prêt — 4 slides au-dessus.")
+            await thread.send(
+                f"✅ Carrousel prêt — {len(pending[0].slides)} slides au-dessus."
+            )
         elif created > 1:
             await thread.send(f"✅ **{created}** carrousels sont prêts.")
 

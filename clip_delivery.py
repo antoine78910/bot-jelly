@@ -121,9 +121,12 @@ def _slide_filename(index: int, label: str) -> str:
 
 def _slide_names(slides: list[Path]) -> list[tuple[Path, str]]:
     named: list[tuple[Path, str]] = []
+    classic = len(slides) == len(SLIDE_LABELS)
     for index, path in enumerate(slides, start=1):
-        label = SLIDE_LABELS[index - 1] if index <= len(SLIDE_LABELS) else f"Slide {index}"
-        named.append((path, _slide_filename(index, label)))
+        if classic:
+            named.append((path, _slide_filename(index, SLIDE_LABELS[index - 1])))
+        else:
+            named.append((path, f"slide_{index:02d}.png"))
     return named
 
 
@@ -189,7 +192,7 @@ async def deliver_carousel_to_thread(
             if not zip_path.is_file():
                 _build_carousel_zip(slides, zip_path)
             await thread.send(
-                "⬇️ **ZIP des 4 slides**",
+                "⬇️ **ZIP des slides**",
                 file=discord.File(zip_path, filename="carousel.zip"),
             )
         return ("discord", zip_link)

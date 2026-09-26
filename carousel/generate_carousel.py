@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import random
 import re
@@ -33,6 +34,12 @@ FONTS_DIR = PROJECT_ROOT / "fonts"
 OUTPUT_DIR = PROJECT_ROOT / "output" / "carousel"
 AB_TEST_DIR = OUTPUT_DIR / "ab_test"
 CAPTIONS_FILE = PROJECT_ROOT / "carousel_captions.txt"
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
+TEMPLATE3_FILE = TEMPLATES_DIR / "template3.json"
+TEMPLATE4_FILE = TEMPLATES_DIR / "template4.json"
+DARK_CITIES_PACK = "dark_cities"
+# Night skylines are only for template 3 — keep them out of the lifestyle mix.
+PHOTO_PACKS_EXCLUDED_FROM_MIX = frozenset({DARK_CITIES_PACK})
 
 # Avatar pack 1 = femme noir (drop photos in assets/avatars/femme_noir/)
 DEFAULT_AVATAR_PACK = "femme_noir"
@@ -407,7 +414,7 @@ def _collect_photos(pack: str | None = None, *, avatar_pack: str | None = None) 
     if pack:
         photos = _collect_images(PHOTOS_DIR / pack)
     else:
-        photos = _collect_images(PHOTOS_DIR)
+        photos = _collect_mix_photos()
     if _is_feminine_avatar_pack(avatar_pack):
         return photos
     return [path for path in photos if not _is_feminine_only_photo(path)]
@@ -928,6 +935,38 @@ def _pick_caption_set(role: str = "hooks", style: str | None = None) -> list[tup
     return _parse_caption_block(random.choice(usable))
 
 
+def _collect_mix_photos() -> list[Path]:
+    """Every photo pack except dedicated backgrounds (dark cities)."""
+    if not PHOTOS_DIR.is_dir():
+        return []
+    photos: list[Path] = []
+    for child in sorted(PHOTOS_DIR.iterdir()):
+        if child.name.startswith("."):
+            continue
+        if child.is_dir():
+            if child.name in PHOTO_PACKS_EXCLUDED_FROM_MIX:
+                continue
+            photos.extend(_collect_images(child))
+            continue
+        if child.suffix.lower() in _IMG_EXTS and not child.name.lower().startswith("readme"):
+            photos.append(child)
+    return photos
+
+
+def _complete_caption_styles() -> list[str]:
+    """Pâté families that have method + JobShift + recap."""
+    method_by = _blocks_by_style("method")
+    jellyjob_by = _blocks_by_style("jellyjob")
+    recap_by = _blocks_by_style("recap")
+    common = set(method_by) & set(jellyjob_by) & set(recap_by)
+    order = ("routine", "etape", "template2")
+    styles = [s for s in order if s in common]
+    styles += [s for s in common if s not in styles]
+    if not styles:
+        styles = [s for s in method_by if method_by[s]] or ["routine"]
+    return styles
+
+
 def _pick_paired_slides() -> tuple[
     str,
     list[tuple[str, bool]],
@@ -940,15 +979,7 @@ def _pick_paired_slides() -> tuple[
       etape    → #étape 1# + #étape 2# + récap blanc
       template2 → #1# Google Emploi + #2# JobShift + récap rentrée
     """
-    method_by = _blocks_by_style("method")
-    jellyjob_by = _blocks_by_style("jellyjob")
-    recap_by = _blocks_by_style("recap")
-    common = set(method_by) & set(jellyjob_by) & set(recap_by)
-    order = ("routine", "etape", "template2")
-    styles = [s for s in order if s in common]
-    styles += [s for s in common if s not in styles]
-    if not styles:
-        styles = [s for s in method_by if method_by[s]] or ["routine"]
+    styles = _complete_caption_styles()
     style = random.choice(styles)
     method = _pick_caption_set("method", style=style)
     jellyjob = _pick_caption_set("jellyjob", style=style)
@@ -1189,6 +1220,642 @@ def _caption_preview(lines: list[tuple[str, bool]]) -> str:
     return " · ".join(parts) if parts else "hook"
 
 
+HOOK_BLUE = (45, 88, 250)
+TEMPLATE3_COUNTS = (3, 4, 5)
+
+
+def _vary(text: str) -> str:
+    return _apply_variations(text).strip()
+
+
+def _load_template3() -> dict | None:
+    if not TEMPLATE3_FILE.is_file():
+        return None
+    try:
+        data = json.loads(TEMPLATE3_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not data.get("companies"):
+        return None
+    return data
+
+
+def _template3_available() -> bool:
+    data = _load_template3()
+    if not data:
+        return False
+    return bool(_collect_images(PHOTOS_DIR / DARK_CITIES_PACK))
+
+
+def _wants_template3(
+    caption_lines,
+    method_lines,
+    jellyjob_lines,
+    recap_lines,
+) -> bool:
+    """Template 3 enters the rotation only once night-city photos exist."""
+    if any(
+        value is not None
+        for value in (caption_lines, method_lines, jellyjob_lines, recap_lines)
+    ):
+        return False
+    if not _template3_available():
+        return False
+    families = _complete_caption_styles() + ["template3"]
+    return random.choice(families) == "template3"
+
+
+def _draw_mixed_stroked(
+    overlay: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    xy: tuple[int, int],
+    text: str,
+    font,
+    emoji_size: int,
+    fill: tuple,
+    stroke: tuple = (0, 0, 0, 255),
+    radius: int = 2,
+) -> None:
+    """White text with a dark outline. Emoji are pasted once, not stacked."""
+    x, y = xy
+    line_h = _measure_mixed(text, font, emoji_size)[1]
+    offsets = ((-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, -2), (-2, 2), (2, 2))
+
+    cursor = x
+    for part, is_emoji in _split_text_runs(text):
+        if is_emoji:
+            em = _load_apple_emoji(part, emoji_size)
+            if em is not None:
+                cursor += em.size[0]
+            else:
+                cursor += emoji_size
+            continue
+        left, top, right, bottom = _text_bbox(part, font)
+        tw = right - left
+        th = bottom - top
+        ty = y + (line_h - th) // 2 - top
+        tx = cursor - left
+        for dx, dy in offsets:
+            draw.text((tx + dx, ty + dy), part, font=font, fill=stroke)
+        draw.text((tx, ty), part, font=font, fill=fill)
+        cursor += tw
+
+    cursor = x
+    for part, is_emoji in _split_text_runs(text):
+        if not is_emoji:
+            left, _top, right, _bottom = _text_bbox(part, font)
+            cursor += right - left
+            continue
+        em = _load_apple_emoji(part, emoji_size)
+        if em is None:
+            cursor += emoji_size
+            continue
+        ey = y + (line_h - em.size[1]) // 2
+        overlay.paste(em, (cursor, ey), em)
+        cursor += em.size[0]
+
+
+def _line_size(text: str, font, emoji_size: int) -> tuple[int, int]:
+    return _measure_mixed(text, font, emoji_size)
+
+
+def _fit_font(text: str, max_width: int, start: int, minimum: int = 36):
+    size = start
+    font = get_tiktok_font(size)
+    while size > minimum and _line_size(text, font, size)[0] > max_width:
+        size -= 2
+        font = get_tiktok_font(size)
+    return font, size
+
+
+def _draw_centered_block(
+    overlay: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    lines: list[str],
+    font,
+    emoji_size: int,
+    y: int,
+    fill: tuple,
+    *,
+    stroke: bool = False,
+    line_gap: int = 8,
+    align: str = "center",
+) -> int:
+    """Draw a centered block. align=left keeps a shared left edge, still centered as a group."""
+    if not lines:
+        return y
+    sizes = [_line_size(line, font, emoji_size) for line in lines]
+    block_w = max(w for w, _ in sizes)
+    x0 = (CANVAS_W - block_w) // 2
+    cy = y
+    for line, (lw, lh) in zip(lines, sizes):
+        x = x0 if align == "left" else x0 + (block_w - lw) // 2
+        if stroke:
+            _draw_mixed_stroked(overlay, draw, (x, cy), line, font, emoji_size, fill)
+        else:
+            _draw_mixed_text(overlay, draw, (x, cy), line, font, emoji_size, fill)
+        cy += lh + line_gap
+    return cy
+
+
+def _draw_pill(
+    overlay: Image.Image,
+    text_lines: list[str],
+    font,
+    y: int,
+    bg: tuple,
+    fg: tuple,
+    *,
+    pad_x: int = 36,
+    pad_y: int = 16,
+    gap: int = 4,
+) -> int:
+    emoji_size = font.size if hasattr(font, "size") else 48
+    sizes = [_line_size(line, font, emoji_size) for line in text_lines]
+    text_w = max(w for w, _ in sizes)
+    text_h = sum(h for _, h in sizes) + gap * max(0, len(sizes) - 1)
+    box_w = text_w + pad_x * 2
+    box_h = text_h + pad_y * 2
+    x0 = (CANVAS_W - box_w) // 2
+    draw = ImageDraw.Draw(overlay)
+    radius = min(28, box_h // 2)
+    draw.rounded_rectangle([x0, y, x0 + box_w, y + box_h], radius=radius, fill=bg + (255,))
+    cy = y + pad_y
+    for line, (lw, lh) in zip(text_lines, sizes):
+        tx = x0 + (box_w - lw) // 2
+        _draw_mixed_text(overlay, draw, (tx, cy), line, font, emoji_size, fg + (255,))
+        cy += lh + gap
+    return y + box_h
+
+
+def _render_template3_hook(bg: Image.Image, count: int, spec: dict) -> Image.Image:
+    overlay = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+    title_font, _ = _fit_font(f"{count} entreprises", 900, 86, 64)
+    sub_lines = [_vary(line) for line in spec.get("lines", ["où faire ton alternance", "en 2026"])]
+    sub_font, _ = _fit_font(max(sub_lines, key=len), 920, 54, 40)
+    y = int(CANVAS_H * 0.22)
+    y = _draw_pill(
+        overlay,
+        [f"{count} entreprises"],
+        title_font,
+        y,
+        HOOK_BLUE,
+        (255, 255, 255),
+        pad_x=42,
+        pad_y=18,
+    )
+    y += 18
+    _draw_pill(
+        overlay,
+        sub_lines,
+        sub_font,
+        y,
+        (255, 255, 255),
+        (17, 17, 17),
+        pad_x=34,
+        pad_y=16,
+    )
+    return Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
+
+
+def _wrap_benefit(text: str, font, emoji_size: int, max_width: int) -> list[str]:
+    wrapped = _wrap_lines(text, font, emoji_size, max_width) or [text]
+    if len(wrapped) == 1:
+        return wrapped
+    cont = []
+    for extra in wrapped[1:]:
+        if extra and not _is_emoji_char(extra[0]):
+            cont.append("    " + extra)
+        else:
+            cont.append(extra)
+    return [wrapped[0], *cont]
+
+
+def _render_template3_company(bg: Image.Image, company: dict) -> Image.Image:
+    name = _vary(company.get("name", ""))
+    role = _vary(company.get("role", ""))
+    raw_lines = [_vary(line) for line in company.get("lines", []) if str(line).strip()]
+    overlay = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    name_font, name_size = _fit_font(name, 880, 72, 48)
+    name_w, name_h = _line_size(name, name_font, name_size)
+    pad_x, pad_y = 56, 32
+    card_w = max(name_w + pad_x * 2, 620)
+    card_h = name_h + pad_y * 2
+    card_x = (CANVAS_W - card_w) // 2
+    card_y = int(CANVAS_H * 0.16)
+    draw.rounded_rectangle(
+        [card_x, card_y, card_x + card_w, card_y + card_h],
+        radius=16,
+        fill=(255, 255, 255, 255),
+    )
+    _draw_mixed_text(
+        overlay,
+        draw,
+        (card_x + (card_w - name_w) // 2, card_y + pad_y),
+        name,
+        name_font,
+        name_size,
+        (20, 20, 20, 255),
+    )
+
+    y = card_y + card_h + 36
+    max_w = CANVAS_W - 100
+    role_font, role_size = _fit_font(role, max_w, 46, 34)
+    if role:
+        y = _draw_centered_block(
+            overlay, draw, [role], role_font, role_size, y,
+            (255, 255, 255, 255), stroke=True, line_gap=6,
+        )
+        y += 16
+
+    body_font = get_tiktok_font(44)
+    body_size = 44
+    lines: list[str] = []
+    for raw in raw_lines:
+        lines.extend(_wrap_benefit(raw, body_font, body_size, max_w))
+
+    text_h = sum(_line_size(line, body_font, body_size)[1] + 12 for line in lines)
+    room = int(CANVAS_H * 0.92) - y
+    if lines and text_h > room and room > 0:
+        scale = max(0.72, room / text_h)
+        body_size = max(32, int(44 * scale))
+        body_font = get_tiktok_font(body_size)
+        lines = []
+        for raw in raw_lines:
+            lines.extend(_wrap_benefit(raw, body_font, body_size, max_w))
+
+    _draw_centered_block(
+        overlay, draw, lines, body_font, body_size, y,
+        (255, 255, 255, 255), stroke=True, line_gap=12, align="left",
+    )
+    return Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
+
+
+def _render_template3_cta(bg: Image.Image, spec: dict) -> Image.Image:
+    overlay = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    question = [_vary(line) for line in spec.get("question", [])]
+    box_lines = [_vary(line) for line in spec.get("box", [])]
+    q_font, q_size = _fit_font(max(question or ["?"], key=len), 960, 54, 40)
+    y = int(CANVAS_H * 0.20)
+    y = _draw_centered_block(
+        overlay, draw, question, q_font, q_size, y,
+        (255, 255, 255, 255), stroke=True, line_gap=10,
+    )
+    y += 28
+    box_font, _ = _fit_font(max(box_lines or ["."], key=len), 900, 42, 32)
+    _draw_pill(
+        overlay,
+        box_lines,
+        box_font,
+        y,
+        (255, 255, 255),
+        (17, 17, 17),
+        pad_x=32,
+        pad_y=18,
+        gap=8,
+    )
+    return Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
+
+
+def _pick_template3_companies(data: dict) -> tuple[int, list[dict]]:
+    companies = list(data.get("companies") or [])
+    allowed = data.get("company_counts") or list(TEMPLATE3_COUNTS)
+    allowed = [int(n) for n in allowed if int(n) >= 1]
+    if not allowed:
+        allowed = [3, 4, 5]
+    count = random.choice(allowed)
+    count = min(count, len(companies))
+    picked = companies[:]
+    random.shuffle(picked)
+    return count, picked[:count]
+
+
+def _generate_template3(
+    dest: Path,
+    *,
+    set_index: int = 0,
+    augment: str = DEFAULT_AUGMENT,
+    quiet: bool = False,
+    output_dir: Path | None = None,
+) -> CarouselBuild:
+    data = _load_template3()
+    if not data:
+        raise FileNotFoundError(f"Template 3 introuvable : {TEMPLATE3_FILE}")
+    photos = _collect_images(PHOTOS_DIR / DARK_CITIES_PACK)
+    if not photos:
+        raise FileNotFoundError(
+            f"Template 3 needs night-city photos — drop files in: {PHOTOS_DIR / DARK_CITIES_PACK}"
+        )
+
+    count, companies = _pick_template3_companies(data)
+    aug = resolve_augment(augment)
+    seed_base = random.randint(0, 1_000_000)
+    prefix = "" if output_dir is not None else f"carousel_{set_index:02d}_"
+    pool = photos[:]
+    random.shuffle(pool)
+    slide_total = count + 2  # hook + companies + cta
+
+    def _bg(index: int) -> Image.Image:
+        path = pool[index % len(pool)]
+        img = _load_cover_augmented(path, CANVAS_W, CANVAS_H, aug, seed_base + index)
+        return ImageEnhance.Brightness(img).enhance(0.9)
+
+    def _log(message: str) -> None:
+        if not quiet:
+            print(message)
+
+    saved: list[Path] = []
+    hook = _render_template3_hook(_bg(0), count, data.get("hook") or {})
+    path0 = dest / f"{prefix}slide_00.png"
+    hook.save(path0, quality=95)
+    saved.append(path0)
+    names = [pool[0].name]
+    _log(f"  Slide 1/{slide_total}: {path0.name}  (HOOK alternance, {count} entreprises)")
+
+    for i, company in enumerate(companies):
+        img = _render_template3_company(_bg(i + 1), company)
+        path = dest / f"{prefix}slide_{i + 1:02d}.png"
+        img.save(path, quality=95)
+        saved.append(path)
+        names.append(pool[(i + 1) % len(pool)].name)
+        _log(f"  Slide {i + 2}/{slide_total}: {path.name}  ({company.get('name', '')})")
+
+    cta = _render_template3_cta(_bg(count + 1), data.get("cta") or {})
+    path_cta = dest / f"{prefix}slide_{count + 1:02d}.png"
+    cta.save(path_cta, quality=95)
+    saved.append(path_cta)
+    names.append(pool[(count + 1) % len(pool)].name)
+    _log(f"  Slide {slide_total}/{slide_total}: {path_cta.name}  (CTA commentaires)")
+    _log(f"  Caption style pair: template3  |  entreprises: {count}  |  augment: {aug}")
+
+    hook_preview = f"{count} entreprises"
+    return CarouselBuild(
+        slides=saved,
+        pair_style="template3",
+        augment=aug,
+        color="city",
+        avatar_name=DARK_CITIES_PACK,
+        photo_names=names,
+        hook_preview=hook_preview,
+    )
+
+
+def _load_template4() -> dict | None:
+    if not TEMPLATE4_FILE.is_file():
+        return None
+    try:
+        data = json.loads(TEMPLATE4_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not data.get("sectors"):
+        return None
+    return data
+
+
+def _template4_available() -> bool:
+    return _load_template4() is not None
+
+
+def _pick_extra_template(
+    caption_lines,
+    method_lines,
+    jellyjob_lines,
+    recap_lines,
+) -> str | None:
+    """None keeps the classic carousel. template3 / template4 join that rotation."""
+    if any(
+        value is not None
+        for value in (caption_lines, method_lines, jellyjob_lines, recap_lines)
+    ):
+        return None
+    choices = ["type1"] * max(1, len(_complete_caption_styles()))
+    if _template3_available():
+        choices.append("template3")
+    if _template4_available():
+        choices.append("template4")
+    pick = random.choice(choices)
+    return None if pick == "type1" else pick
+
+
+def _company_line(company: dict) -> str:
+    name = str(company.get("name") or "").strip()
+    note = str(company.get("note") or "").strip()
+    if note and random.random() < 0.55:
+        return f"{name} ({note})"
+    return name
+
+
+def _sample_template4_sectors(data: dict) -> list[dict]:
+    bounds = data.get("per_sector") or {}
+    low = int(bounds.get("min") or 3)
+    high = int(bounds.get("max") or 6)
+    sectors = list(data.get("sectors") or [])
+    random.shuffle(sectors)
+    if len(sectors) > 5 and random.random() < 0.35:
+        sectors = sectors[:-1]
+    sampled: list[dict] = []
+    for sector in sectors:
+        companies = [c for c in (sector.get("companies") or []) if c.get("name")]
+        if not companies:
+            continue
+        random.shuffle(companies)
+        take = random.randint(min(low, len(companies)), min(max(low, high), len(companies)))
+        lines = [_company_line(company) for company in companies[:take]]
+        sampled.append({"title": str(sector.get("title") or "").strip(), "lines": lines})
+    return [block for block in sampled if block["title"] and block["lines"]]
+
+
+def _notes_text_size(text: str, font) -> tuple[int, int]:
+    left, top, right, bottom = font.getbbox(text)
+    return right - left, bottom - top
+
+
+def _wrap_plain(text: str, font, max_width: int) -> list[str]:
+    words = text.split()
+    if not words:
+        return [text]
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        trial = f"{current} {word}"
+        if _notes_text_size(trial, font)[0] <= max_width:
+            current = trial
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
+def _template4_slide_blocks(sectors: list[dict], title_font, body_font, max_width: int) -> list[dict]:
+    blocks = []
+    for sector in sectors:
+        bullets: list[str] = []
+        for line in sector["lines"]:
+            bullets.extend(_wrap_plain(f"•  {line}", body_font, max_width))
+        blocks.append({"title": sector["title"], "bullets": bullets})
+    return blocks
+
+
+def _template4_slide_height(blocks: list[dict], title_font, body_font) -> int:
+    title_h = _notes_text_size("Ag", title_font)[1]
+    body_h = _notes_text_size("Ag", body_font)[1]
+    total = 0
+    for index, block in enumerate(blocks):
+        if index:
+            total += 44
+        total += title_h + 16
+        total += len(block["bullets"]) * (body_h + 14)
+    return total
+
+
+def _pack_template4_slides(sectors: list[dict]) -> list[list[dict]]:
+    """Spread sectors across the 3 black Notes slides, then trim so text stays on canvas."""
+    buckets: list[list[dict]] = [[], [], []]
+    for index, sector in enumerate(sectors):
+        buckets[index % 3].append(sector)
+    title_font = get_tiktok_font(46)
+    body_font = get_tiktok_font(36)
+    max_width = CANVAS_W - 150
+    budget = 1580
+    packed: list[list[dict]] = []
+    for bucket in buckets:
+        if not bucket:
+            continue
+        while bucket and _template4_slide_height(
+            _template4_slide_blocks(bucket, title_font, body_font, max_width),
+            title_font,
+            body_font,
+        ) > budget:
+            longest = max(bucket, key=lambda item: len(item["lines"]))
+            if len(longest["lines"]) > 2:
+                longest["lines"] = longest["lines"][:-1]
+            elif len(bucket) > 1:
+                bucket.remove(longest)
+            else:
+                break
+        packed.append(bucket)
+    return packed[:3]
+
+
+def _render_template4_hook(bg: Image.Image, lines: list[str]) -> Image.Image:
+    overlay = Image.new("RGBA", bg.size, (0, 0, 0, 40))
+    draw = ImageDraw.Draw(overlay)
+    font, _size = _fit_font(max(lines, key=len), 980, 68, 42)
+    heights = [_notes_text_size(line, font)[1] for line in lines]
+    gap = 14
+    total = sum(heights) + gap * max(0, len(lines) - 1)
+    y = (CANVAS_H - total) // 2
+    for line, height in zip(lines, heights):
+        width, _ = _notes_text_size(line, font)
+        x = (CANVAS_W - width) // 2
+        draw.text((x + 3, y + 3), line, font=font, fill=(0, 0, 0, 170))
+        draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))
+        y += height + gap
+    return Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
+
+
+def _render_template4_notes(sectors: list[dict]) -> Image.Image:
+    img = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    title_font = get_tiktok_font(46)
+    body_font = get_tiktok_font(36)
+    margin_x = 78
+    max_width = CANVAS_W - margin_x - 64
+    blocks = _template4_slide_blocks(sectors, title_font, body_font, max_width)
+    y = 200
+    title_h = _notes_text_size("Ag", title_font)[1]
+    body_h = _notes_text_size("Ag", body_font)[1]
+    for index, block in enumerate(blocks):
+        if index:
+            y += 44
+        title = block["title"]
+        title_w, _ = _notes_text_size(title, title_font)
+        draw.text((margin_x, y), title, font=title_font, fill=(255, 255, 255))
+        underline_y = y + title_h + 6
+        draw.line(
+            [(margin_x, underline_y), (margin_x + title_w, underline_y)],
+            fill=(255, 255, 255),
+            width=2,
+        )
+        y = underline_y + 16
+        for bullet in block["bullets"]:
+            draw.text((margin_x, y), bullet, font=body_font, fill=(255, 255, 255))
+            y += body_h + 14
+    return img
+
+
+def _generate_template4(
+    dest: Path,
+    *,
+    set_index: int = 0,
+    avatar_pack: str = DEFAULT_AVATAR_PACK,
+    photo_pack: str | None = DEFAULT_PHOTO_PACK,
+    augment: str = DEFAULT_AUGMENT,
+    quiet: bool = False,
+    output_dir: Path | None = None,
+) -> CarouselBuild:
+    data = _load_template4()
+    if not data:
+        raise FileNotFoundError(f"Template 4 introuvable : {TEMPLATE4_FILE}")
+    photos = _collect_photos(photo_pack, avatar_pack=avatar_pack)
+    if not photos:
+        raise FileNotFoundError(
+            f"Template 4 a besoin d'une photo — dépose des fichiers dans {PHOTOS_DIR}"
+        )
+
+    hooks = [h for h in (data.get("hooks") or []) if h]
+    hook_lines = list(random.choice(hooks)) if hooks else [
+        "LES GRANDES ENTREPRISES",
+        "QUI RECRUTENT MASSIVEMENT",
+        "EN ALTERNANCE",
+        "(2026)",
+    ]
+    sectors = _sample_template4_sectors(data)
+    slides_sectors = _pack_template4_slides(sectors)
+    aug = resolve_augment("none" if augment == "random" else augment)
+    if aug in ("crop", "prop", "ai"):
+        aug = "grade"
+    photo = random.choice(photos)
+    seed_base = random.randint(0, 1_000_000)
+    prefix = "" if output_dir is not None else f"carousel_{set_index:02d}_"
+    bg = _load_cover_augmented(photo, CANVAS_W, CANVAS_H, aug, seed_base)
+    bg = ImageEnhance.Brightness(bg).enhance(0.97)
+
+    def _log(message: str) -> None:
+        if not quiet:
+            print(message)
+
+    saved: list[Path] = []
+    hook = _render_template4_hook(bg, hook_lines)
+    path0 = dest / f"{prefix}slide_00.png"
+    hook.save(path0, quality=95)
+    saved.append(path0)
+    _log(f"  Slide 1/4: {path0.name}  (HOOK template4, photo {photo.name})")
+
+    for index, page in enumerate(slides_sectors, start=1):
+        img = _render_template4_notes(page)
+        path = dest / f"{prefix}slide_{index:02d}.png"
+        img.save(path, quality=95)
+        saved.append(path)
+        page_titles = ", ".join(block["title"] for block in page)
+        _log(f"  Slide {index + 1}/4: {path.name}  ({page_titles})")
+
+    _log("  Caption style pair: template4  |  notes iPhone, fond noir")
+    return CarouselBuild(
+        slides=saved,
+        pair_style="template4",
+        augment=aug,
+        color="notes",
+        avatar_name=avatar_pack,
+        photo_names=[photo.name],
+        hook_preview=" ".join(hook_lines[:2]),
+    )
+
+
 def generate_type1_carousel(
     color: str = DEFAULT_COLOR,
     set_index: int = 0,
@@ -1211,6 +1878,26 @@ def generate_type1_carousel(
     """
     dest = Path(output_dir) if output_dir is not None else OUTPUT_DIR
     dest.mkdir(parents=True, exist_ok=True)
+
+    extra = _pick_extra_template(caption_lines, method_lines, jellyjob_lines, recap_lines)
+    if extra == "template3":
+        return _generate_template3(
+            dest,
+            set_index=set_index,
+            augment=augment,
+            quiet=quiet,
+            output_dir=output_dir,
+        )
+    if extra == "template4":
+        return _generate_template4(
+            dest,
+            set_index=set_index,
+            avatar_pack=avatar_pack,
+            photo_pack=photo_pack,
+            augment=augment,
+            quiet=quiet,
+            output_dir=output_dir,
+        )
 
     avatar_dir = _avatar_pack_dir(avatar_pack)
     avatars = _collect_images(avatar_dir)

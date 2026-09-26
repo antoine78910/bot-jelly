@@ -1,0 +1,120 @@
+{
+  "id": "template3",
+  "photo_pack": "dark_cities",
+  "company_counts": [3, 4, 5],
+  "note": "Accroche (nombre d'entreprises) + une slide par entreprise, comme la carte blanche + texte blanc, + slide commentaires. Les faits restent ceux de la liste. {{a|b}} ne change que la tournure.",
+  "hook": {
+    "lines": [
+      "{{où faire ton alternance|où viser ton alternance|pour ton alternance}}",
+      "{{en 2026|pour 2026}}"
+    ]
+  },
+  "cta": {
+    "question": [
+      "{{Tu es ou tu as été|Tu es, ou tu as été,}}",
+      "alternant(e) dans l'une de",
+      "ces entreprises ?"
+    ],
+    "box": [
+      "{{Dis-nous en commentaire|Dis nous en commentaire}}",
+      "{{si tu as vraiment eu tous|si t'as vraiment eu tous}}",
+      "ces avantages ! ➡️",
+      "{{Et surtout, partage ceux|Et surtout partage ceux}}",
+      "{{qu'on a oubliés|qu'on aurait oubliés}}"
+    ]
+  },
+  "companies": [
+    {
+      "name": "Allianz",
+      "role": "{{Alternance — Data Analyst|Data Analyst}} | La Défense",
+      "lines": [
+        "💰 Salaire : {{selon le niveau d'études|selon niveau d'études}}",
+        "🏠 {{Télétravail possible|Du télétravail possible}}",
+        "🚌 50 % {{des transports|transport}}",
+        "🎁 Intéressement, participation, CSE",
+        "📊 Analyse de données, Excel/SQL, Power BI",
+        "📅 Début {{septembre / octobre 2026|sept. ou oct. 2026}}"
+      ]
+    },
+    {
+      "name": "Danone",
+      "role": "{{Alternance — HR Business Partner|HR Business Partner}} | Paris",
+      "lines": [
+        "💻 Jusqu'à 2 jours de télétravail / semaine",
+        "🚌 {{Remboursement intégral du transport|Transport remboursé à 100 %}}",
+        "🏋️ Restaurant d'entreprise + salle de sport",
+        "📚 {{Montée en compétences|Programme de compétences}}",
+        "📅 {{Octobre 2026 ou janvier 2027|Oct. 2026 ou janv. 2027}}",
+        "🎓 Bac+4/5"
+      ]
+    },
+    {
+      "name": "Louis Vuitton",
+      "role": "{{Alternance — Maintenance immo|Assistant maintenance immobilière}} | Paris",
+      "lines": [
+        "🏢 Siège Louis Vuitton",
+        "🎁 Avantages groupe LVMH",
+        "📅 Début novembre 2026",
+        "⏳ Alternance {{1 ou 2 ans|d'1 ou 2 ans}}",
+        "👤 Débutant accepté",
+        "📊 Power BI apprécié"
+      ]
+    },
+    {
+      "name": "Havas",
+      "role": "{{Études média & planning|Études média et planning stratégique}} | Puteaux",
+      "lines": [
+        "📍 Havas Village — La Défense",
+        "💳 75 % transport, ou jusqu'à 600 €",
+        "🍽️ Restaurant d'entreprise + cafétéria",
+        "📅 Octobre 2026",
+        "🎓 Bac+3/4/5",
+        "🌍 Anglais requis"
+      ]
+    },
+    {
+      "name": "AMI Paris",
+      "role": "{{Alternance — Performance marketing|Assistant performance marketing}} | Paris",
+      "lines": [
+        "📅 Fin octobre / début novembre 2026",
+        "🎓 Bac+4/5",
+        "📱 SEO + Google Ads + Meta + e-commerce",
+        "📊 {{Analyse de performance / KPI|Suivi des performances et des KPI}}",
+        "🛍️ Activité digitale d'une marque de luxe"
+      ]
+    },
+    {
+      "name": "Orange Business",
+      "role": "{{Alternance — Chargé de formation|Chargé de formation}} | Nanterre",
+      "lines": [
+        "📅 Septembre / octobre 2026",
+        "🏢 Grand groupe tech",
+        "📚 Digital Services School",
+        "⏳ Minimum 1 an",
+        "👤 Profil business / RH, côté digital"
+      ]
+    },
+    {
+      "name": "Société Générale",
+      "role": "Alternance — {{banque / finance|métiers banque et finance}}",
+      "lines": [
+        "📅 Dès le 1er octobre 2026",
+        "📋 {{Plusieurs postes|Plusieurs offres ouvertes}}",
+        "💻 Télétravail selon l'offre",
+        "🚌 Transport pris en charge",
+        "🎁 CSE + avantages bancaires",
+        "📈 Intéressement et participation"
+      ]
+    },
+    {
+      "name": "Groupe BPCE",
+      "role": "{{Pilotage & reporting|Chargé de pilotage et reporting}} | Finance",
+      "lines": [
+        "📅 Octobre 2026",
+        "📊 Direction des investissements",
+        "💰 Au contact des marchés financiers",
+        "🏢 Paris, {{ou autre site selon l'offre|autre implantation selon l'offre}}"
+      ]
+    }
+  ]
+}
