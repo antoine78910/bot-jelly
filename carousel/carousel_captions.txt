@@ -22,6 +22,12 @@ POV : {{ton mari a trouvé|t'as trouvé}}|{{son|ton}} CDI ({{hyper|très}} bien 
 POV : t'as trouvé ton|premier CDI ({{très|hyper}} bien payé)|grâce aux conseils de|ta sœur
 (Elle est pas RH depuis|{{4 ans|3 ans}} pour rien|finalement 😭)
 
+---
+
+# Template 1 — accroche. « Illégal » est espacé, même couleur que le pâté.
+{{Ma méthode devrait être|Cette méthode devrait être}}|I L L E G A L
+Je {{trouve|décroche}} un {{travail|job}} quand|je veux avec {{30 minutes|30 min}}|d'{{effort|efforts}} par jour
+
 === method ===
 
 # style: routine
@@ -158,6 +164,30 @@ POV : {{Je ne suis plus RH|je ne suis plus RH,}}|{{donc je peux me le|du coup, j
 POV : {{Je ne suis plus en RH|Je ne suis plus RH}}|{{donc, je peux me le|alors je peux me le}}|{{permettre|permettre,}} 😂
 {{Voici la meilleure|C'est la meilleure}}|{{stratégie pour trouver|façon de trouver}}|un {{emploi|job}}
 
+---
+
+# style: template2
+# Template 2 — badge haut + accroche bas. Ref: piston / sauveuse.
+^~🚨 {{CDI / Alternance / Stage|CDI, Alternance, Stage|CDI / Alternance / Stages}}
+{{Tous ceux qui n'ont pas|Ceux qui n'ont pas}}|de PISTON, {{je suis votre|je suis là, votre}}|{{sauveuse|sauveuse,}} 👩‍🏫
+{{Je n'ai pas été RH pour ne|J'ai pas été RH pour ne}}|pas aider les gens 📝
+
+---
+
+# style: template2
+# Template 2 — POV mari. Pastilles centrées, dernière en blanc.
+POV : {{ton mari a trouvé|t'as trouvé}}|{{son|ton}} CDI ({{hyper|très}} bien payé)|grâce à {{tes conseils|tes astuces}} 💋
+({{J'ai pas été RH 3 ans|J'ai pas fait RH 3 ans}}|pour rien 😭)
+!({{(Voici la stratégie)|(Voici la méthode)}})
+
+---
+
+# style: template2
+# Template 2 — iPhone épinglé en haut, POV sœur dans le bas.
+^({{Elle m'a offert un iPhone|Elle m'a offert un iPhone,}}|pour me remercier)
+POV : {{ta sœur a trouvé|ta sœur a décroché}}|son premier CDI|({{gracieusement payé|gracieusement, payé}} 😂)|grâce à {{tes conseils|tes astuces}} 😘
+({{J'ai pas eu une carrière|J'ai pas fait une carrière}}|de RH pour rien|{{finalement|finalement,}})
+
 === method ===
 
 # style: template2
@@ -178,6 +208,17 @@ POV : {{Je ne suis plus en RH|Je ne suis plus RH}}|{{donc, je peux me le|alors j
 !{{Google Emploi|Google Jobs}}
 {{Un seul endroit|Tout est au même endroit}} :|il {{regroupe|réunit}} les offres|d'emploi {{dispos|disponibles}} sur le web,|{{plus de temps perdu|sans perdre de temps}}|{{ni d'opportunités|et sans rater d'offres}}
 ({{Pense au filtre|Active le filtre}}|« {{dernières 24h|24 dernières heures}} »|pour ne voir que les|offres {{fraîches|qui viennent de sortir}})
+
+---
+
+# style: template2
+# Template 2 — ref « SVP arrêtez » / Google emploi. Produit en blanc.
+{{SVP arrêtez|Arrêtez svp}} 🚫 d'utiliser|des dizaines de sites pour|trouver des emplois !!!
+Vous perdez juste|{{énormément|beaucoup trop}}|d'{{opportunités|opportunité}} et de temps
+{{Utilisez un agrégateur !|Utilisez un agregateur !}}|Le meilleur est
+!{{Google Emploi|Google Jobs}}
+{{Ça regroupe|Ca regroupe}} la quasi|totalité des offres|d'emplois {{dispos|disponibles}} sur le|web au même endroit
+{{Oubliez pas|N'oubliez pas}} le filtre|« {{dernières 24h|dernières 24 heures}} » pour voir|{{que|seulement}} les offres {{récentes|fraîches}}
 
 === jellyjob ===
 
@@ -204,6 +245,15 @@ POV : {{Je ne suis plus en RH|Je ne suis plus RH}}|{{donc, je peux me le|alors j
 {{100 à 200|Entre 100 et 200}}|candidatures partent|{{direct sur les ATS|sur les ATS, direct}},|CV {{optimisé pour|calibré pour passer}}|les filtres ATS
 {{Tu suis les retours|Le suivi des retours}}|{{dans l'inbox|se fait dans l'inbox}},|{{sans changer d'appli|directement}}
 
+---
+
+# style: template2
+# Template 2 — ref « SVP arrêtez ». CVgood.dev → JobShift (swipe, 100–200 ATS, CV filtré, inbox).
+{{SVP arrêtez|Arrêtez svp}} 🚫 d'envoyer|vos {{CV|cv}} avant d'être passé|sur
+!JobShift
+{{C'est le Tinder des jobs|C'est un Tinder pour les jobs}} :|vous {{swipez à droite|swipez à droite,}}|et ça {{postule tout seul|postule automatiquement}}|({{100 à 200|entre 100 et 200}} candidatures|{{direct sur les ATS|partent direct sur les ATS}})
+Le CV {{adapté à l'offre|optimisé pour l'offre}}|est {{boosté|optimisé}} pour passer|les filtres ATS (bye bye|les filtres de recrutement),|et vous {{suivez tout|suivez les réponses}}|dans l'inbox
+
 === recap ===
 
 # style: template2
@@ -218,3 +268,11 @@ POV : {{Je ne suis plus en RH|Je ne suis plus RH}}|{{donc, je peux me le|alors j
 {{C'est aussi simple que ça|Aussi simple que ça}}
 {{Une candidature adaptée|Postule avec un CV adapté}}|à une offre {{fraîche|toute récente}},|et {{t'as toutes tes chances|tu mets tes chances au max}} 🤔
 {{N'écoutez pas les vendeurs|Écoute pas les vendeurs}}|{{de formations|de formations,}} qui|{{compliquent tout|rendent ça compliqué}}
+
+---
+
+# style: template2
+# Template 2 — ref « C'est tout ». Vouvoiement, 3 pâtés.
+C'est tout !
+{{Envoyez|Envoyer}} des {{CV|Cvs}}|{{optimisés ATS|optimisés pour les ATS}} pour des|offres {{récentes|fraîches}}, et vous|{{avez maximisé vos|mettez vos}}|chances au maximum !
+{{Écoutez pas|N'écoutez pas}} les vendeurs|de formations qui|{{compliquent tout|compliquent tout.}}
