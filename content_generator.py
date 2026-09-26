@@ -68,7 +68,7 @@ def panel_embed() -> discord.Embed:
             "(accroche, méthode, ou liste d’entreprises).\n\n"
             "**Générer du contenu** — 1 carrousel\n"
             "**Générer un lot** — jusqu’à 5 carrousels (accroches, textes, CTA et photos différents)\n\n"
-            "Chaque export mélange légendes, avatar, photos lifestyle et un effet visuel.\n\n"
+            "Tu choisis le template. L’avatar reste le même.\n\n"
             f"⭐ Avant de poster : ajoute tous les sons en favoris dans {music} "
             "pour les retrouver au moment de publier le carrousel."
         ),
@@ -274,10 +274,8 @@ async def _generate_clips_for_user(
                 carousel_style=carousel_style,
             )
             pending.append(recipe)
-        except CarouselAssemblyError as exc:
-            errors.append(f"Carrousel {index + 1} échoué : {exc}")
-        except discord.HTTPException as exc:
-            errors.append(f"Impossible de préparer le carrousel {index + 1} : {exc}")
+            except Exception as exc:
+                errors.append(f"Carrousel {index + 1} échoué : {exc}")
 
     created = 0
     external_links: list[str] = []
@@ -404,6 +402,27 @@ async def _send_ephemeral_errors(
     )
 
 
+class _SilentProgress:
+    async def edit(self, **kwargs) -> None:
+        return None
+
+    async def delete(self) -> None:
+        return None
+
+
+async def _show_status(interaction: discord.Interaction, text: str) -> None:
+    body = text[:2000]
+    try:
+        await interaction.edit_original_response(content=body, view=None, embed=None)
+        return
+    except discord.HTTPException:
+        pass
+    try:
+        await interaction.followup.send(body, ephemeral=True)
+    except discord.HTTPException:
+        pass
+
+
 async def _handle_clip_request(
     interaction: discord.Interaction,
     *,
@@ -413,17 +432,19 @@ async def _handle_clip_request(
     carousel_style: str | None = None,
 ) -> None:
     if not isinstance(interaction.channel, discord.TextChannel):
-        await interaction.response.send_message(
-            "Ce panneau fonctionne uniquement dans un salon texte.",
-            ephemeral=True,
-        )
+        message = "Ce panneau fonctionne uniquement dans un salon texte."
+        if interaction.response.is_done():
+            await _show_status(interaction, message)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
         return
 
     if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message(
-            "Impossible de vérifier ton appartenance au serveur.",
-            ephemeral=True,
-        )
+        message = "Impossible de vérifier ton appartenance au serveur."
+        if interaction.response.is_done():
+            await _show_status(interaction, message)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
         return
 
     if not interaction.response.is_done():
@@ -436,33 +457,56 @@ async def _handle_clip_request(
             mode=mode,
         )
     except discord.HTTPException as exc:
-        await interaction.followup.send(
-            f"Impossible de créer ton fil carrousel : {exc}",
-            ephemeral=True,
-        )
+        await _show_status(interaction, f"❌ Impossible de créer ton fil carrousel : {exc}")
         return
 
     count = max(1, min(5, count))
-    progress_message = await interaction.followup.send(
-        embed=progress_embed(1, count),
-        ephemeral=True,
-        wait=True,
-    )
+    try:
+        progress_message = await interaction.followup.send(
+            embed=progress_embed(1, count),
+            ephemeral=True,
+            wait=True,
+        )
+    except discord.HTTPException:
+        progress_message = _SilentProgress()
 
-    created, errors, _external = await _generate_clips_for_user(
-        interaction,
-        interaction.channel,
-        interaction.user,
-        thread,
-        mode=mode,
-        count=count,
-        progress_message=progress_message,
-        avatar_pack=avatar_pack,
-        carousel_style=carousel_style,
-    )
+    try:
+        created, errors, _external = await _generate_clips_for_user(
+            interaction,
+            interaction.channel,
+            interaction.user,
+            thread,
+            mode=mode,
+            count=count,
+            progress_message=progress_message,
+            avatar_pack=avatar_pack,
+            carousel_style=carousel_style,
+        )
+    except Exception as exc:
+        print(f"Content generation crashed: {exc}")
+        await _show_status(interaction, f"❌ Génération échouée : {exc}")
+        try:
+            await thread.send(f"❌ Génération échouée : {exc}")
+        except discord.HTTPException:
+            pass
+        return
 
-    if errors:
-        await _send_ephemeral_errors(interaction, errors)
+    if created:
+        note = ""
+        if errors:
+            note = "\n" + "\n".join(f"• {line}" for line in errors)
+        await _show_status(
+            interaction,
+            f"✅ Posté dans {thread.mention}.{note}",
+        )
+        return
+
+    body = "\n".join(f"• {line}" for line in errors) or "Aucun carrousel produit."
+    await _show_status(interaction, f"❌ Génération échouée\n{body}")
+    try:
+        await thread.send(f"❌ Génération échouée\n{body}"[:1900])
+    except discord.HTTPException:
+        pass
 
 
 # User who can pick among all avatar packs (others stay on femme_noir).
@@ -594,7 +638,9 @@ async def _prompt_or_generate(
     mode: str,
     count: int = 1,
 ) -> None:
-    """Staff can pick an avatar pack; everyone else always uses femme_noir."""
+    """Everyone picks a template. Avatar stays femme_noir unless staff chose a pack."""
+    from carousel.generate_carousel import DEFAULT_AVATAR_PACK
+
     if _can_pick_avatar_pack(interaction.user.id):
         await interaction.response.send_message(
             "Choisis le pack d’avatars pour ce carrousel :",
@@ -602,7 +648,15 @@ async def _prompt_or_generate(
             ephemeral=True,
         )
         return
-    await _handle_clip_request(interaction, mode=mode, count=count, avatar_pack=None)
+    await interaction.response.send_message(
+        "Choisis le template. L’avatar reste le même.",
+        view=TemplatePickView(
+            mode=mode,
+            count=count,
+            avatar_pack=DEFAULT_AVATAR_PACK,
+        ),
+        ephemeral=True,
+    )
 
 
 class BatchGenerateModal(discord.ui.Modal, title="Générer un lot"):

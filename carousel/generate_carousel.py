@@ -1024,6 +1024,8 @@ def _layout_blocks(
         font = get_tiktok_font(size)
         inner_max = MAX_TEXT_WIDTH - PILL_PAD_X * 2
         wrapped = _wrap_block(text, font, size, inner_max)
+        if not wrapped:
+            wrapped = [((text or " ").strip() or " ", False)]
 
         while True:
             line_sizes = [_measure_mixed(ln, font, size) for ln, _ in wrapped]
@@ -1550,11 +1552,6 @@ def _generate_template3(
     if not data:
         raise FileNotFoundError(f"Template 3 introuvable : {TEMPLATE3_FILE}")
     photos = _collect_images(PHOTOS_DIR / DARK_CITIES_PACK)
-    if not photos:
-        raise FileNotFoundError(
-            f"Template 3 needs night-city photos — drop files in: {PHOTOS_DIR / DARK_CITIES_PACK}"
-        )
-
     count, companies = _pick_template3_companies(data)
     aug = resolve_augment(augment)
     seed_base = random.randint(0, 1_000_000)
@@ -1564,6 +1561,8 @@ def _generate_template3(
     slide_total = count + 2  # hook + companies + cta
 
     def _bg(index: int) -> Image.Image:
+        if not pool:
+            return Image.new("RGB", (CANVAS_W, CANVAS_H), (8, 10, 18))
         path = pool[index % len(pool)]
         img = _load_cover_augmented(path, CANVAS_W, CANVAS_H, aug, seed_base + index)
         return ImageEnhance.Brightness(img).enhance(0.9)
@@ -1577,7 +1576,7 @@ def _generate_template3(
     path0 = dest / f"{prefix}slide_00.png"
     hook.save(path0, quality=95)
     saved.append(path0)
-    names = [pool[0].name]
+    names = [pool[0].name] if pool else ["fond-sombre"]
     _log(f"  Slide 1/{slide_total}: {path0.name}  (HOOK alternance, {count} entreprises)")
 
     for i, company in enumerate(companies):
@@ -1585,14 +1584,14 @@ def _generate_template3(
         path = dest / f"{prefix}slide_{i + 1:02d}.png"
         img.save(path, quality=95)
         saved.append(path)
-        names.append(pool[(i + 1) % len(pool)].name)
+        names.append(pool[(i + 1) % len(pool)].name if pool else "fond-sombre")
         _log(f"  Slide {i + 2}/{slide_total}: {path.name}  ({company.get('name', '')})")
 
     cta = _render_template3_cta(_bg(count + 1), data.get("cta") or {})
     path_cta = dest / f"{prefix}slide_{count + 1:02d}.png"
     cta.save(path_cta, quality=95)
     saved.append(path_cta)
-    names.append(pool[(count + 1) % len(pool)].name)
+    names.append(pool[(count + 1) % len(pool)].name if pool else "fond-sombre")
     _log(f"  Slide {slide_total}/{slide_total}: {path_cta.name}  (CTA commentaires)")
     _log(f"  Caption style pair: template3  |  entreprises: {count}  |  augment: {aug}")
 
@@ -1806,10 +1805,10 @@ def _generate_template4(
     data = _load_template4()
     if not data:
         raise FileNotFoundError(f"Template 4 introuvable : {TEMPLATE4_FILE}")
-    photos = _collect_photos(photo_pack, avatar_pack=avatar_pack)
-    if not photos:
+    avatars = _collect_images(_avatar_pack_dir(avatar_pack))
+    if not avatars:
         raise FileNotFoundError(
-            f"Template 4 a besoin d'une photo — dépose des fichiers dans {PHOTOS_DIR}"
+            f"Template 4 a besoin d'un avatar — dépose des fichiers dans {_avatar_pack_dir(avatar_pack)}"
         )
 
     hooks = [h for h in (data.get("hooks") or []) if h]
@@ -1824,7 +1823,7 @@ def _generate_template4(
     aug = resolve_augment("none" if augment == "random" else augment)
     if aug in ("crop", "prop", "ai"):
         aug = "grade"
-    photo = random.choice(photos)
+    photo = random.choice(avatars)
     seed_base = random.randint(0, 1_000_000)
     prefix = "" if output_dir is not None else f"carousel_{set_index:02d}_"
     bg = _load_cover_augmented(photo, CANVAS_W, CANVAS_H, aug, seed_base)
