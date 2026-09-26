@@ -17,6 +17,10 @@ MAIN_SOUND = {
 ALT_SOUNDS = [
     {
         "label": "Original sound",
+        "url": "https://www.tiktok.com/music/original-sound-7646095563964467989",
+    },
+    {
+        "label": "Original sound",
         "url": "https://www.tiktok.com/music/original-sound-7595993188188310283",
     },
     {
