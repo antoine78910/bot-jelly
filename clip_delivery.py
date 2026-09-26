@@ -156,6 +156,38 @@ async def _zip_url(slides: list[Path]) -> str:
     return await upload_to_external_host(zip_path)
 
 
+DISCORD_ALBUM_BUDGET = 8_000_000
+
+
+def _shrink_slide(path: Path, max_bytes: int) -> Path:
+    """JPEG copy small enough for a Discord album. Leaves the original in place."""
+    if path.stat().st_size <= max_bytes and path.suffix.lower() in {".jpg", ".jpeg"}:
+        return path
+    from PIL import Image
+
+    dest = path.with_name(f"{path.stem}_discord.jpg")
+    image = Image.open(path).convert("RGB")
+    quality = 85
+    while quality >= 45:
+        image.save(dest, "JPEG", quality=quality, optimize=True)
+        if dest.stat().st_size <= max_bytes:
+            return dest
+        quality -= 10
+    return dest
+
+
+def _slides_for_discord(slides: list[Path]) -> list[tuple[Path, str]]:
+    named = _slide_names(slides)
+    if not named:
+        return []
+    per_file = max(350_000, DISCORD_ALBUM_BUDGET // len(named))
+    prepared: list[tuple[Path, str]] = []
+    for path, filename in named:
+        shrunk = _shrink_slide(path, per_file)
+        prepared.append((shrunk, Path(filename).with_suffix(shrunk.suffix).name))
+    return prepared
+
+
 async def deliver_carousel_to_thread(
     thread: discord.Thread,
     member: discord.Member,
@@ -172,37 +204,30 @@ async def deliver_carousel_to_thread(
         raise CarouselAssemblyError(f"Fichiers carrousel manquants : {', '.join(missing)}")
 
     caption = f"{member.mention} 🎠 **{clip_label}**"
-    files = [
-        discord.File(path, filename=filename)
-        for path, filename in _slide_names(slides)
-    ]
-
-    zip_link: str | None = None
-    try:
-        zip_link = await _zip_url(slides)
-    except ClipAssemblyError:
-        zip_link = None
-
-    view = _zip_download_view(zip_link) if zip_link else None
+    prepared = _slides_for_discord(slides)
+    files = [discord.File(path, filename=filename) for path, filename in prepared]
 
     try:
-        await thread.send(caption, files=files, view=view)
-        if zip_link is None:
-            zip_path = slides[0].parent / "carousel.zip"
-            if not zip_path.is_file():
-                _build_carousel_zip(slides, zip_path)
-            await thread.send(
-                "⬇️ **ZIP des slides**",
-                file=discord.File(zip_path, filename="carousel.zip"),
-            )
-        return ("discord", zip_link)
+        await thread.send(caption, files=files)
+        return ("discord", None)
     except discord.HTTPException as exc:
         if not is_payload_too_large(exc):
             raise
 
-    if zip_link is None:
-        zip_link = await _zip_url(slides)
+    # Album too heavy: post the slides one by one so they still show in the thread.
+    sent_any = False
+    for index, (path, filename) in enumerate(prepared, start=1):
+        label = caption if index == 1 else f"{caption} — slide {index}"
+        try:
+            await thread.send(label, file=discord.File(path, filename=filename))
+            sent_any = True
+        except discord.HTTPException as exc:
+            if not is_payload_too_large(exc):
+                raise
+    if sent_any:
+        return ("discord", None)
 
+    zip_link = await _zip_url(slides)
     await thread.send(
         f"{caption} — trop lourd pour Discord en album, "
         f"télécharge le ZIP (lien valable **{EXTERNAL_LINK_TTL}**) :\n{zip_link}",

@@ -106,28 +106,60 @@ async def _add_staff_to_thread(thread: discord.Thread) -> None:
                 pass
 
 
+async def _ensure_thread_member(thread: discord.Thread, user: discord.abc.User) -> None:
+    """Private threads hide messages from anyone who wasn't added."""
+    if thread.archived:
+        try:
+            await thread.edit(archived=False)
+        except discord.HTTPException:
+            pass
+    try:
+        await thread.add_user(user)
+    except discord.HTTPException:
+        pass
+    await _add_staff_to_thread(thread)
+
+
 async def find_clips_thread(
     channel: discord.TextChannel,
     user: discord.User,
 ) -> discord.Thread | None:
     name = thread_name_for(user)
+    found: dict[int, discord.Thread] = {}
+
     for thread in channel.threads:
         if thread.name == name:
-            return thread
-    try:
-        async for thread in channel.archived_threads(limit=100):
-            if thread.name == name:
-                if thread.archived:
-                    await thread.edit(archived=False)
-                try:
-                    await thread.add_user(user)
-                except discord.HTTPException:
-                    pass
-                await _add_staff_to_thread(thread)
-                return thread
-    except discord.HTTPException:
-        pass
-    return None
+            found[thread.id] = thread
+
+    guild = channel.guild
+    if guild is not None:
+        try:
+            active = await guild.fetch_active_threads()
+            for thread in active.threads:
+                if thread.parent_id == channel.id and thread.name == name:
+                    found[thread.id] = thread
+        except discord.HTTPException:
+            pass
+
+    for private in (False, True):
+        try:
+            async for thread in channel.archived_threads(
+                limit=100,
+                private=private,
+                joined=private,
+            ):
+                if thread.name == name:
+                    found[thread.id] = thread
+                    break
+        except discord.HTTPException:
+            pass
+
+    if not found:
+        return None
+
+    thread = max(found.values(), key=lambda item: item.id)
+    await _ensure_thread_member(thread, user)
+    return thread
 
 
 async def get_or_create_clips_thread(
