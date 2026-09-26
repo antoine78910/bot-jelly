@@ -64,6 +64,7 @@ def assemble_carousel(
     seed: int,
     color: str = "pink",
     avatar_pack: str | None = None,
+    carousel_style: str | None = None,
 ) -> CarouselRecipe:
     from carousel.generate_carousel import (
         DEFAULT_AVATAR_PACK,
@@ -99,6 +100,7 @@ def assemble_carousel(
             output_dir=job_dir,
             quiet=True,
             avatar_pack=chosen_pack,
+            carousel_style=carousel_style,
         )
     except FileNotFoundError as exc:
         shutil.rmtree(job_dir, ignore_errors=True)

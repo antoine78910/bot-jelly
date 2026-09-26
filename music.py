@@ -79,12 +79,14 @@ class MusicLinksView(discord.ui.View):
             )
         )
         for index, item in enumerate(ALT_SOUNDS, start=1):
+            # Discord allows 5 components per row. The 6th alternative goes on the next row.
+            row = 1 + (index - 1) // 5
             self.add_item(
                 discord.ui.Button(
                     label=f"Alt {index} · {item['label']}"[:80],
                     style=discord.ButtonStyle.link,
                     url=item["url"],
-                    row=1,
+                    row=row,
                 )
             )
 

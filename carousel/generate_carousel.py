@@ -967,7 +967,7 @@ def _complete_caption_styles() -> list[str]:
     return styles
 
 
-def _pick_paired_slides() -> tuple[
+def _pick_paired_slides(forced_style: str | None = None) -> tuple[
     str,
     list[tuple[str, bool]],
     list[tuple[str, bool]],
@@ -980,6 +980,11 @@ def _pick_paired_slides() -> tuple[
       template2 → #1# Google Emploi + #2# JobShift + récap rentrée
     """
     styles = _complete_caption_styles()
+    if forced_style == "template2" and "template2" in styles:
+        styles = ["template2"]
+    elif forced_style == "template1":
+        classic = [s for s in styles if s in ("routine", "etape")]
+        styles = classic or styles
     style = random.choice(styles)
     method = _pick_caption_set("method", style=style)
     jellyjob = _pick_caption_set("jellyjob", style=style)
@@ -1868,6 +1873,7 @@ def generate_type1_carousel(
     augment: str = DEFAULT_AUGMENT,
     output_dir: Path | None = None,
     quiet: bool = False,
+    carousel_style: str | None = None,
 ) -> CarouselBuild:
     """
     Type 1 (strict):
@@ -1879,7 +1885,28 @@ def generate_type1_carousel(
     dest = Path(output_dir) if output_dir is not None else OUTPUT_DIR
     dest.mkdir(parents=True, exist_ok=True)
 
-    extra = _pick_extra_template(caption_lines, method_lines, jellyjob_lines, recap_lines)
+    if carousel_style == "template3":
+        return _generate_template3(
+            dest,
+            set_index=set_index,
+            augment=augment,
+            quiet=quiet,
+            output_dir=output_dir,
+        )
+    if carousel_style == "template4":
+        return _generate_template4(
+            dest,
+            set_index=set_index,
+            avatar_pack=avatar_pack,
+            photo_pack=photo_pack,
+            augment=augment,
+            quiet=quiet,
+            output_dir=output_dir,
+        )
+
+    extra = None if carousel_style else _pick_extra_template(
+        caption_lines, method_lines, jellyjob_lines, recap_lines
+    )
     if extra == "template3":
         return _generate_template3(
             dest,
@@ -1911,7 +1938,9 @@ def generate_type1_carousel(
         )
 
     if method_lines is None or jellyjob_lines is None or recap_lines is None:
-        pair_style, paired_method, paired_jellyjob, paired_recap = _pick_paired_slides()
+        pair_style, paired_method, paired_jellyjob, paired_recap = _pick_paired_slides(
+            carousel_style
+        )
         if method_lines is None:
             method_lines = paired_method
         if jellyjob_lines is None:

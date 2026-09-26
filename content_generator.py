@@ -193,6 +193,7 @@ async def _generate_clips_for_user(
     count: int,
     progress_message: discord.WebhookMessage,
     avatar_pack: str | None = None,
+    carousel_style: str | None = None,
 ) -> tuple[int, list[str], list[str]]:
     from carousel_assembler import (
         CarouselAssemblyError,
@@ -235,9 +236,10 @@ async def _generate_clips_for_user(
         try:
             recipe = await asyncio.to_thread(
                 assemble_carousel,
-                seed=hash((member.id, index, progress_message.id, avatar_pack or ""))
+                seed=hash((member.id, index, progress_message.id, avatar_pack or "", carousel_style or ""))
                 & 0xFFFFFFFF,
                 avatar_pack=avatar_pack,
+                carousel_style=carousel_style,
             )
             pending.append(recipe)
         except CarouselAssemblyError as exc:
@@ -376,6 +378,7 @@ async def _handle_clip_request(
     mode: str,
     count: int = 1,
     avatar_pack: str | None = None,
+    carousel_style: str | None = None,
 ) -> None:
     if not isinstance(interaction.channel, discord.TextChannel):
         await interaction.response.send_message(
@@ -423,6 +426,7 @@ async def _handle_clip_request(
         count=count,
         progress_message=progress_message,
         avatar_pack=avatar_pack,
+        carousel_style=carousel_style,
     )
 
     if errors:
@@ -476,14 +480,56 @@ class AvatarPackSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction) -> None:
         pack = self.values[0]
-        # Disable the select after choice so it can't be reused.
+        label = AVATAR_PACK_LABELS.get(pack, pack)
+        await interaction.response.edit_message(
+            content=f"Pack **{label}**. Choisis le template à générer :",
+            view=TemplatePickView(mode=self.mode, count=self.count, avatar_pack=pack),
+        )
+
+
+class TemplateSelect(discord.ui.Select):
+    def __init__(self, *, mode: str, count: int, avatar_pack: str) -> None:
+        self.mode = mode
+        self.count = count
+        self.avatar_pack = avatar_pack
+        super().__init__(
+            placeholder="Choisis un template…",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(
+                    label="Template 1 — Google / JobShift",
+                    value="template1",
+                    description="Méthode classique, pastilles roses",
+                ),
+                discord.SelectOption(
+                    label="Template 2 — Édition rentrée",
+                    value="template2",
+                    description="POV RH, pastilles crème",
+                ),
+                discord.SelectOption(
+                    label="Template 3 — Entreprises",
+                    value="template3",
+                    description="3 à 5 boîtes, fond ville de nuit",
+                ),
+                discord.SelectOption(
+                    label="Template 4 — Notes",
+                    value="template4",
+                    description="Liste par secteur, fond noir",
+                ),
+            ],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        style = self.values[0]
+        chosen = next((opt.label for opt in self.options if opt.value == style), style)
         self.disabled = True
         if self.view is not None:
             for item in self.view.children:
                 item.disabled = True
             try:
                 await interaction.response.edit_message(
-                    content=f"Pack sélectionné : **{AVATAR_PACK_LABELS.get(pack, pack)}** — génération…",
+                    content=f"Template **{chosen}** — génération…",
                     view=self.view,
                 )
             except discord.HTTPException:
@@ -493,8 +539,15 @@ class AvatarPackSelect(discord.ui.Select):
             interaction,
             mode=self.mode,
             count=self.count,
-            avatar_pack=pack,
+            avatar_pack=self.avatar_pack,
+            carousel_style=style,
         )
+
+
+class TemplatePickView(discord.ui.View):
+    def __init__(self, *, mode: str, count: int, avatar_pack: str) -> None:
+        super().__init__(timeout=180)
+        self.add_item(TemplateSelect(mode=mode, count=count, avatar_pack=avatar_pack))
 
 
 class AvatarPackPickView(discord.ui.View):
