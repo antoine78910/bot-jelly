@@ -108,6 +108,8 @@ TIKTOK_STYLE = {
 DEFAULT_COLOR = "pink"
 # Template 2 (édition rentrée) uses the cream pills from the reference.
 PAIR_STYLE_COLOR = {"template2": "cream"}
+# Long rentrée captions otherwise fall to the global minimum and read too small.
+TEMPLATE2_FONT_BOOST = 1.4
 BADGE_FONT_SIZE = 42
 
 # Layout — continuous stepped pâté: each line hugs text, one surface per block
@@ -992,24 +994,32 @@ def _pick_paired_slides(forced_style: str | None = None) -> tuple[
     return style, method, jellyjob, recap
 
 
-def _pick_font_size(text: str) -> int:
+def _pick_font_size(text: str, *, boost: float = 1.0) -> int:
     """Short text → large font (fills more space); long text → smaller."""
     plain = _CHOICE_RE.sub(lambda m: m.group(1).split("|")[0], text)
     plain = plain.replace("|", " ").replace("!!", "").strip()
     n = len(plain)
     if n <= 18:
-        return FONT_SIZE_MAX
-    if n <= 35:
-        return 62
-    if n <= 55:
-        return FONT_SIZE_BASE
-    if n <= 90:
-        return 44
-    return FONT_SIZE_MIN
+        size = FONT_SIZE_MAX
+    elif n <= 35:
+        size = 62
+    elif n <= 55:
+        size = FONT_SIZE_BASE
+    elif n <= 90:
+        size = 44
+    else:
+        size = FONT_SIZE_MIN
+    if boost == 1.0:
+        return size
+    floor = max(FONT_SIZE_MIN, int(round(FONT_SIZE_MIN * boost)))
+    ceiling = int(round(FONT_SIZE_MAX * boost))
+    return min(ceiling, max(floor, int(round(size * boost))))
 
 
 def _layout_blocks(
     caption_lines: list[tuple[str, bool]],
+    *,
+    font_boost: float = 1.0,
 ) -> list[dict]:
     """
     TikTok pâté: each line hugs its text with uniform pad (like the reference).
@@ -1020,7 +1030,17 @@ def _layout_blocks(
 
     for block_idx, item in enumerate(caption_lines):
         text, emphasis, pin_top, small = _caption_fields(item)
-        size = BADGE_FONT_SIZE if small else _pick_font_size(text)
+        floor = FONT_SIZE_MIN
+        line_cap = 5
+        if small:
+            size = BADGE_FONT_SIZE
+            if font_boost != 1.0:
+                size = int(round(BADGE_FONT_SIZE * font_boost))
+        else:
+            size = _pick_font_size(text, boost=font_boost)
+            if font_boost != 1.0:
+                floor = max(FONT_SIZE_MIN, int(round(FONT_SIZE_MIN * font_boost)))
+                line_cap = 8
         font = get_tiktok_font(size)
         inner_max = MAX_TEXT_WIDTH - PILL_PAD_X * 2
         wrapped = _wrap_block(text, font, size, inner_max)
@@ -1030,9 +1050,9 @@ def _layout_blocks(
         while True:
             line_sizes = [_measure_mixed(ln, font, size) for ln, _ in wrapped]
             max_lw = max(w for w, _ in line_sizes)
-            if max_lw <= inner_max and len(wrapped) <= 5:
+            if max_lw <= inner_max and len(wrapped) <= line_cap:
                 break
-            if size <= FONT_SIZE_MIN:
+            if size <= floor:
                 break
             size -= 2
             font = get_tiktok_font(size)
@@ -1162,6 +1182,8 @@ def draw_stacked_text_boxes(
     img: Image.Image,
     caption_lines: list[tuple],
     style: dict,
+    *,
+    font_boost: float = 1.0,
 ) -> Image.Image:
     """TikTok pâté: uniform pad, tight lines, round corners, centered — no artifacts.
 
@@ -1171,7 +1193,8 @@ def draw_stacked_text_boxes(
     if not caption_lines:
         return img
 
-    blocks = _layout_blocks(caption_lines)
+    boost = font_boost
+    blocks = _layout_blocks(caption_lines, font_boost=boost)
     pinned = [b for b in blocks if b.get("pin_top")]
     body = [b for b in blocks if not b.get("pin_top")]
 
@@ -1181,6 +1204,13 @@ def draw_stacked_text_boxes(
     split_gap = int(CANVAS_H * 0.03) if pinned and body else 0
 
     total_h = _stack_height(pinned) + _stack_height(body) + split_gap
+    # Ease the boost if a long template 2 caption would overflow the slide.
+    while total_h > usable_h and boost > 1.08:
+        boost = round(boost * 0.92, 3)
+        blocks = _layout_blocks(caption_lines, font_boost=boost)
+        pinned = [b for b in blocks if b.get("pin_top")]
+        body = [b for b in blocks if not b.get("pin_top")]
+        total_h = _stack_height(pinned) + _stack_height(body) + split_gap
     if total_h > usable_h:
         scale = usable_h / total_h
         _scale_blocks(blocks, scale)
@@ -1210,10 +1240,12 @@ def render_slide_with_text(
     bg: Image.Image,
     caption_lines: list[tuple[str, bool]] | None,
     style: dict,
+    *,
+    font_boost: float = 1.0,
 ) -> Image.Image:
     img = bg.copy()
     if caption_lines:
-        img = draw_stacked_text_boxes(img, caption_lines, style)
+        img = draw_stacked_text_boxes(img, caption_lines, style, font_boost=font_boost)
     return img
 
 
@@ -1977,7 +2009,8 @@ def generate_type1_carousel(
     # --- Slide 1: AVATAR + hook only ---
     avatar_path = random.choice(avatars)
     bg1 = _load_cover_augmented(avatar_path, CANVAS_W, CANVAS_H, aug, seed_base)
-    slide1 = render_slide_with_text(bg1, caption_lines, style)
+    font_boost = TEMPLATE2_FONT_BOOST if pair_style == "template2" else 1.0
+    slide1 = render_slide_with_text(bg1, caption_lines, style, font_boost=font_boost)
     path1 = dest / f"{prefix}slide_00.png"
     slide1.save(path1, quality=95)
     saved.append(path1)
@@ -1995,7 +2028,7 @@ def generate_type1_carousel(
     labels = ("GOOGLE", "JOBSHIFT", "RECAP")
     for i, (pick, text, label) in enumerate(zip(picks, texts, labels)):
         bg = _load_cover_augmented(pick, CANVAS_W, CANVAS_H, aug, seed_base + 1 + i)
-        slide = render_slide_with_text(bg, text, style)
+        slide = render_slide_with_text(bg, text, style, font_boost=font_boost)
         path = dest / f"{prefix}slide_{i + 1:02d}.png"
         slide.save(path, quality=95)
         saved.append(path)
@@ -2028,15 +2061,18 @@ def run_test(color: str = DEFAULT_COLOR) -> Path:
         random.seed(seed)
         theme = PAIR_STYLE_COLOR.get(pair_style, color)
         pair_style_colors = TIKTOK_STYLE.get(theme, style)
+        boost = TEMPLATE2_FONT_BOOST if pair_style == "template2" else 1.0
         for role in ("method", "jellyjob", "recap"):
             lines = _pick_caption_set(role, style=pair_style)
-            img = render_slide_with_text(bg.copy(), lines, pair_style_colors)
+            img = render_slide_with_text(bg.copy(), lines, pair_style_colors, font_boost=boost)
             out = OUTPUT_DIR / f"test_{role}_{pair_style}.png"
             img.save(out, quality=95)
             print(f"Test {pair_style}/{role}: {out.name}")
         if pair_style == "template2":
             hook_lines = _pick_caption_set("hooks", style="template2")
-            hook_img2 = render_slide_with_text(bg.copy(), hook_lines, pair_style_colors)
+            hook_img2 = render_slide_with_text(
+                bg.copy(), hook_lines, pair_style_colors, font_boost=TEMPLATE2_FONT_BOOST
+            )
             out_hook2 = OUTPUT_DIR / "test_hooks_template2.png"
             hook_img2.save(out_hook2, quality=95)
             print(f"Test template2/hooks: {out_hook2.name}")
