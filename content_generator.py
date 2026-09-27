@@ -83,8 +83,8 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
         description=(
             f"Salut {user.mention} — voici ton fil privé de posting.\n\n"
             f"Tu l’as ouvert via **{mode_label}**.\n\n"
-            "L’aperçu est dans le fil. Pour poster, utilise **Télécharger les PNG** "
-            "(fichiers d’origine, hors Discord, lien 72 h).\n\n"
+            "L’aperçu est dans le fil. Pour poster, télécharge **le ZIP** "
+            "(PNG d’origine, sans grain, lien 72 h).\n\n"
             "Prêt à poster en carrousel Instagram / TikTok."
         ),
         color=CONTENT_COLOR,
@@ -324,10 +324,10 @@ async def _generate_clips_for_user(
             )
         elif created == 1:
             await thread.send(
-                "✅ Carrousel prêt — aperçu au-dessus, PNG d’origine via **Télécharger les PNG**."
+                "✅ Carrousel prêt — aperçu au-dessus, PNG d’origine via **Télécharger le ZIP**."
             )
         elif created > 1:
-            await thread.send(f"✅ **{created}** carrousels sont prêts. PNG d’origine via **Télécharger les PNG**.")
+            await thread.send(f"✅ **{created}** carrousels sont prêts. PNG d’origine via **Télécharger le ZIP**.")
 
     if count > 1 and 0 < created < count:
         errors.insert(0, f"Seuls **{created}/{count}** carrousels ont été livrés.")

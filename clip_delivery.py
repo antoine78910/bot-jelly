@@ -12,6 +12,7 @@ from clip_assembler import ClipAssemblyError, prepare_for_discord_upload
 from carousel_assembler import CarouselAssemblyError
 
 LITTERBOX_API = "https://litterbox.catbox.moe/resources/internals/api.php"
+CATBOX_API = "https://catbox.moe/user/api.php"
 EXTERNAL_LINK_TTL = "72h"
 
 
@@ -38,29 +39,38 @@ def _content_type_for(path: Path) -> str:
 
 
 async def upload_to_external_host(path: Path) -> str:
-    """Upload a file to litterbox.catbox.moe (public URL, valid 72 hours)."""
+    """Upload a file outside Discord. Tries catbox, then litterbox."""
     if not path.is_file():
         raise ClipAssemblyError(f"File not found: {path}")
 
-    form = aiohttp.FormData()
-    form.add_field("reqtype", "fileupload")
-    form.add_field("time", EXTERNAL_LINK_TTL)
-    form.add_field(
-        "fileToUpload",
-        path.read_bytes(),
-        filename=path.name,
-        content_type=_content_type_for(path),
-    )
-
+    payload = path.read_bytes()
     timeout = aiohttp.ClientTimeout(total=300)
+    errors: list[str] = []
+    targets = ((CATBOX_API, None), (LITTERBOX_API, EXTERNAL_LINK_TTL))
+
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(LITTERBOX_API, data=form) as response:
-            body = (await response.text()).strip()
+        for url, ttl in targets:
+            form = aiohttp.FormData()
+            form.add_field("reqtype", "fileupload")
+            if ttl:
+                form.add_field("time", ttl)
+            form.add_field(
+                "fileToUpload",
+                payload,
+                filename=path.name,
+                content_type=_content_type_for(path),
+            )
+            try:
+                async with session.post(url, data=form) as response:
+                    body = (await response.text()).strip()
+            except Exception as exc:
+                errors.append(f"{url}: {exc}")
+                continue
+            if body.startswith("https://"):
+                return body
+            errors.append(f"{url}: {body[:180]}")
 
-    if not body.startswith("https://"):
-        raise ClipAssemblyError(f"External upload failed: {body[:300]}")
-
-    return body
+    raise ClipAssemblyError(f"External upload failed: {' | '.join(errors)[:300]}")
 
 
 async def deliver_clip_to_thread(
@@ -141,7 +151,7 @@ def _zip_download_view(url: str) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
     view.add_item(
         discord.ui.Button(
-            label="Télécharger les PNG",
+            label="Télécharger le ZIP",
             style=discord.ButtonStyle.link,
             url=url,
             emoji="⬇️",
@@ -167,12 +177,12 @@ def _shrink_slide(path: Path, max_bytes: int) -> Path:
 
     dest = path.with_name(f"{path.stem}_discord.jpg")
     image = Image.open(path).convert("RGB")
-    quality = 85
-    while quality >= 45:
-        image.save(dest, "JPEG", quality=quality, optimize=True)
+    quality = 95
+    while quality >= 80:
+        image.save(dest, "JPEG", quality=quality, optimize=True, subsampling=0)
         if dest.stat().st_size <= max_bytes:
             return dest
-        quality -= 10
+        quality -= 5
     return dest
 
 
@@ -204,11 +214,13 @@ async def deliver_carousel_to_thread(
         raise CarouselAssemblyError(f"Fichiers carrousel manquants : {', '.join(missing)}")
 
     caption = f"{member.mention} 🎠 **{clip_label}**"
+    zip_path = slides[0].parent / "carousel.zip"
+    _build_carousel_zip(slides, zip_path)
     zip_link: str | None = None
     try:
-        zip_link = await _zip_url(slides)
+        zip_link = await upload_to_external_host(zip_path)
     except Exception as exc:
-        print(f"Original PNG upload failed for {clip_label}: {exc}")
+        print(f"Original ZIP upload failed for {clip_label}: {exc}")
 
     prepared = _slides_for_discord(slides)
     files = [discord.File(path, filename=filename) for path, filename in prepared]
@@ -229,23 +241,32 @@ async def deliver_carousel_to_thread(
                         preview_error = nested
                         break
 
+    note = (
+        f"{caption}\n"
+        "PNG d’origine dans le ZIP : photo nette, sans grain, sans compression Discord."
+    )
     if zip_link:
+        note += f"\nLien valable **{EXTERNAL_LINK_TTL}** :\n{zip_link}"
+
+    try:
         await thread.send(
-            f"{caption}\n"
-            "PNG d’origine, sans compression Discord. "
-            f"Lien valable **{EXTERNAL_LINK_TTL}** :\n{zip_link}",
+            note,
+            file=discord.File(zip_path, filename="carrousel.zip"),
+            view=_zip_download_view(zip_link) if zip_link else None,
+            suppress_embeds=True,
+        )
+        return ("external" if zip_link else "discord"), zip_link
+    except discord.HTTPException as exc:
+        if not is_payload_too_large(exc) or not zip_link:
+            if preview_error is not None:
+                raise preview_error
+            raise
+        await thread.send(
+            note,
             view=_zip_download_view(zip_link),
             suppress_embeds=True,
         )
         return "external", zip_link
-
-    if preview_error is not None:
-        raise preview_error
-    await thread.send(
-        f"{caption}\nLe lien hors Discord n’a pas pu être créé. "
-        "L’aperçu ci-dessus est la version compressée."
-    )
-    return "discord", None
 
 
 async def _prepare(path: Path, *, emergency: bool) -> Path:
