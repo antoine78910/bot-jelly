@@ -502,7 +502,7 @@ async def cleanvideo_command(
 
 @bot.tree.command(
     name="varyimage",
-    description="Crée une variation d'une image (recadrage/couleur, ou IA si FAL_KEY est configuré).",
+    description="Crée une variation d'une image (léger recadrage net, ou IA si FAL_KEY est configuré).",
 )
 @app_commands.describe(
     image="Image à varier",
@@ -536,15 +536,15 @@ async def varyimage_command(
         await image.save(input_path)
         img = await bot.loop.run_in_executor(None, lambda: Image.open(input_path).convert("RGB"))
 
-        from carousel.generate_carousel import _augment_ai, _augment_crop, _augment_grade
+        from carousel.generate_carousel import _augment_ai, _augment_crop
 
         rng = random.Random()
-        method_used = "ai" if ai else "crop+grade"
+        method_used = "ai" if ai else "crop"
 
         def _run_augment():
             if ai:
                 return _augment_ai(img, rng)
-            return _augment_grade(_augment_crop(img, rng), rng)
+            return _augment_crop(img, rng)
 
         varied = await bot.loop.run_in_executor(None, _run_augment)
         await bot.loop.run_in_executor(None, lambda: varied.save(output_path, quality=95))

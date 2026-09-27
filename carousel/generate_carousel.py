@@ -6,8 +6,8 @@ Type 1 carousel: slide 1 = avatar + hook, slides 2–4 = style/study photos (+ m
 Usage:
   python generate_carousel.py --test              # preview text style on black background
   python generate_carousel.py --ab-test           # optional A/B compare (all 4 side by side)
-  python generate_carousel.py --augment random    # default: 1 random effect per carousel
-  python generate_carousel.py --augment crop      # force crop|grade|grain|prop|none|random
+  python generate_carousel.py --augment none      # default: original photo, sharp cover crop
+  python generate_carousel.py --augment crop      # optional zoom only (no grain, no contrast)
   python generate_carousel.py --color pink --sets 3
 """
 
@@ -46,9 +46,10 @@ DEFAULT_AVATAR_PACK = "femme_noir"
 # Photo packs under assets/photos/ — slides 2–4 pick at random from all packs
 DEFAULT_PHOTO_PACK = None  # None = mix every remaining pack under assets/photos/
 
-# Photo augment: random = pick 1 of 4 per carousel (default). A/B compare via --ab-test only.
+# Explicit CLI effects. The default carousel path does not use them:
+# grain and contrast/vignette made lifestyle photos look processed.
 AUGMENT_METHODS = ("crop", "grade", "grain", "prop")
-DEFAULT_AUGMENT = "random"  # one random effect on all slides of a carousel
+DEFAULT_AUGMENT = "none"
 AB_TEST_ACTIVE = False  # set True to re-enable --ab-test without the "inactive" notice
 
 # ---------------------------------------------------------------------------
@@ -437,21 +438,15 @@ def _load_and_cover(path: Path, w: int, h: int) -> Image.Image:
 # ---------------------------------------------------------------------------
 
 def _augment_crop(img: Image.Image, rng: random.Random) -> Image.Image:
-    """Zoom 8–14% + random pan — strongest free anti-duplicate."""
+    """Slight zoom and pan. No blur, rotation, or mirror — stays sharp."""
     w, h = img.size
-    zoom = rng.uniform(1.08, 1.14)
+    zoom = rng.uniform(1.04, 1.08)
     nw, nh = int(w * zoom), int(h * zoom)
     scaled = img.resize((nw, nh), Image.Resampling.LANCZOS)
     max_x, max_y = nw - w, nh - h
     left = rng.randint(0, max(0, max_x))
     top = rng.randint(0, max(0, max_y))
-    out = scaled.crop((left, top, left + w, top + h))
-    if rng.random() < 0.45:
-        out = ImageOps.mirror(out)
-    angle = rng.uniform(-2.2, 2.2)
-    if abs(angle) > 0.3:
-        out = out.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False, fillcolor=(0, 0, 0))
-    return out
+    return scaled.crop((left, top, left + w, top + h))
 
 
 def _augment_grade(img: Image.Image, rng: random.Random) -> Image.Image:
@@ -564,7 +559,7 @@ def _augment_ai(img: Image.Image, rng: random.Random) -> Image.Image:
     try:
         from image_ai_variation import ImageVariationError, remix_image_to_pil
     except ImportError:
-        return _augment_grade(_augment_crop(img, rng), rng)
+        return _augment_crop(img, rng)
 
     tmp_path = None
     try:
@@ -576,9 +571,9 @@ def _augment_ai(img: Image.Image, rng: random.Random) -> Image.Image:
             remixed = ImageOps.fit(remixed, img.size, Image.Resampling.LANCZOS)
         return remixed
     except ImageVariationError:
-        return _augment_grade(_augment_crop(img, rng), rng)
+        return _augment_crop(img, rng)
     except Exception:
-        return _augment_grade(_augment_crop(img, rng), rng)
+        return _augment_crop(img, rng)
     finally:
         if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
@@ -607,17 +602,13 @@ def _augment_prop(img: Image.Image, rng: random.Random) -> Image.Image:
 def resolve_augment(method: str | None = None) -> str:
     """
     Resolve augment for a carousel.
-    random (default) → pick one of crop|grade|grain|prop once for the whole
-    set. "ai" only joins that random pool when CAROUSEL_AI_VARIATION=true
-    and FAL_KEY are both set (see _ai_augment_enabled()); it can still be
-    requested explicitly at any time (falls back gracefully if unconfigured).
+    random / default → none, so the photo stays the sharp original cover.
+    grain, grade, crop, prop and ai stay available only when asked explicitly.
     """
     m = (method or DEFAULT_AUGMENT).lower().strip()
     if m in ("random", "rand", "auto", ""):
-        pool = list(AUGMENT_METHODS)
-        if _ai_augment_enabled():
-            pool.append("ai")
-        return random.choice(pool)
+        # Keep the source photo. Grain, contrast and vignette read as filters.
+        return "none"
     if m in ("none", "off"):
         return "none"
     if m == "ai":
@@ -1852,14 +1843,13 @@ def _generate_template4(
     ]
     sectors = _sample_template4_sectors(data)
     slides_sectors = _pack_template4_slides(sectors)
-    aug = resolve_augment("none" if augment == "random" else augment)
-    if aug in ("crop", "prop", "ai"):
-        aug = "grade"
+    aug = resolve_augment("none" if augment in (None, "random", "rand", "auto", "") else augment)
+    if aug in ("grade", "grain", "prop", "ai"):
+        aug = "none"
     photo = random.choice(avatars)
     seed_base = random.randint(0, 1_000_000)
     prefix = "" if output_dir is not None else f"carousel_{set_index:02d}_"
     bg = _load_cover_augmented(photo, CANVAS_W, CANVAS_H, aug, seed_base)
-    bg = ImageEnhance.Brightness(bg).enhance(0.97)
 
     def _log(message: str) -> None:
         if not quiet:
@@ -2092,7 +2082,7 @@ def main():
         "--augment",
         type=str,
         default=DEFAULT_AUGMENT,
-        help=f"Photo augment: random (default), {', '.join(AUGMENT_METHODS)}, none",
+        help=f"Photo treatment: none (default, sharp original). Optional: {', '.join(AUGMENT_METHODS)}, random",
     )
     parser.add_argument(
         "--source",
