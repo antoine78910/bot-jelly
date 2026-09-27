@@ -131,8 +131,8 @@ async def log_content_generation(
 
     for output in outputs[:5]:
         delivery = "Upload Discord"
-        if output.delivery_mode == "external" and output.url:
-            delivery = f"[Lien externe]({output.url}) (72h)"
+        if output.url:
+            delivery = f"[PNG d’origine]({output.url}) (72h)"
         value = f"{output.summary}\n**Livraison :** {delivery}"
         embed.add_field(name=output.label, value=value[:1024], inline=False)
 

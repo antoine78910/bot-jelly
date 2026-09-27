@@ -141,7 +141,7 @@ def _zip_download_view(url: str) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
     view.add_item(
         discord.ui.Button(
-            label="Télécharger le ZIP",
+            label="Télécharger les PNG",
             style=discord.ButtonStyle.link,
             url=url,
             emoji="⬇️",
@@ -204,37 +204,48 @@ async def deliver_carousel_to_thread(
         raise CarouselAssemblyError(f"Fichiers carrousel manquants : {', '.join(missing)}")
 
     caption = f"{member.mention} 🎠 **{clip_label}**"
+    zip_link: str | None = None
+    try:
+        zip_link = await _zip_url(slides)
+    except Exception as exc:
+        print(f"Original PNG upload failed for {clip_label}: {exc}")
+
     prepared = _slides_for_discord(slides)
     files = [discord.File(path, filename=filename) for path, filename in prepared]
+    preview_error: discord.HTTPException | None = None
 
     try:
         await thread.send(caption, files=files)
-        return ("discord", None)
     except discord.HTTPException as exc:
         if not is_payload_too_large(exc):
-            raise
+            preview_error = exc
+        else:
+            for index, (path, filename) in enumerate(prepared, start=1):
+                label = caption if index == 1 else f"{caption} — slide {index}"
+                try:
+                    await thread.send(label, file=discord.File(path, filename=filename))
+                except discord.HTTPException as nested:
+                    if not is_payload_too_large(nested):
+                        preview_error = nested
+                        break
 
-    # Album too heavy: post the slides one by one so they still show in the thread.
-    sent_any = False
-    for index, (path, filename) in enumerate(prepared, start=1):
-        label = caption if index == 1 else f"{caption} — slide {index}"
-        try:
-            await thread.send(label, file=discord.File(path, filename=filename))
-            sent_any = True
-        except discord.HTTPException as exc:
-            if not is_payload_too_large(exc):
-                raise
-    if sent_any:
-        return ("discord", None)
+    if zip_link:
+        await thread.send(
+            f"{caption}\n"
+            "PNG d’origine, sans compression Discord. "
+            f"Lien valable **{EXTERNAL_LINK_TTL}** :\n{zip_link}",
+            view=_zip_download_view(zip_link),
+            suppress_embeds=True,
+        )
+        return "external", zip_link
 
-    zip_link = await _zip_url(slides)
+    if preview_error is not None:
+        raise preview_error
     await thread.send(
-        f"{caption} — trop lourd pour Discord en album, "
-        f"télécharge le ZIP (lien valable **{EXTERNAL_LINK_TTL}**) :\n{zip_link}",
-        view=_zip_download_view(zip_link),
-        suppress_embeds=True,
+        f"{caption}\nLe lien hors Discord n’a pas pu être créé. "
+        "L’aperçu ci-dessus est la version compressée."
     )
-    return "external", zip_link
+    return "discord", None
 
 
 async def _prepare(path: Path, *, emergency: bool) -> Path:

@@ -83,8 +83,8 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
         description=(
             f"Salut {user.mention} — voici ton fil privé de posting.\n\n"
             f"Tu l’as ouvert via **{mode_label}**.\n\n"
-            "Tes carrousels apparaîtront ici en album photo, "
-            "avec un bouton **Télécharger le ZIP**.\n\n"
+            "L’aperçu est dans le fil. Pour poster, utilise **Télécharger les PNG** "
+            "(fichiers d’origine, hors Discord, lien 72 h).\n\n"
             "Prêt à poster en carrousel Instagram / TikTok."
         ),
         color=CONTENT_COLOR,
@@ -310,30 +310,24 @@ async def _generate_clips_for_user(
                         slide_paths=list(recipe.slides),
                     )
                 )
-                if delivery_mode == "external" and url:
+                if url:
                     external_links.append(f"**{clip_label}:** {url}")
             except CarouselAssemblyError as exc:
                 errors.append(f"{clip_label} échoué : {exc}")
             except discord.HTTPException as exc:
                 errors.append(f"Impossible d’envoyer {clip_label.lower()} : {exc}")
 
-        if external_links:
-            await thread.send(
-                "🔗 **Téléchargements externes** (limite de fichier Discord) :\n"
-                + "\n".join(external_links),
-                suppress_embeds=True,
-            )
-
         if created == len(pending) and created == count:
             await thread.send(
-                f"✅ Les **{created}** carrousel{'s' if created != 1 else ''} sont prêts."
+                f"✅ Les **{created}** carrousel{'s' if created != 1 else ''} sont prêts. "
+        "Télécharge les PNG via le bouton, pas depuis l’aperçu Discord.",
             )
         elif created == 1:
             await thread.send(
-                f"✅ Carrousel prêt — {len(pending[0].slides)} slides au-dessus."
+                "✅ Carrousel prêt — aperçu au-dessus, PNG d’origine via **Télécharger les PNG**."
             )
         elif created > 1:
-            await thread.send(f"✅ **{created}** carrousels sont prêts.")
+            await thread.send(f"✅ **{created}** carrousels sont prêts. PNG d’origine via **Télécharger les PNG**.")
 
     if count > 1 and 0 < created < count:
         errors.insert(0, f"Seuls **{created}/{count}** carrousels ont été livrés.")
@@ -344,7 +338,7 @@ async def _generate_clips_for_user(
                 embed=discord.Embed(
                     description=(
                         f"✅ **Lot terminé — {created}/{count} carrousels**\n"
-                        f"Certaines slides sont des liens externes dans {thread.mention}."
+                        f"Les PNG d’origine sont dans {thread.mention} (lien 72 h)."
                     ),
                     color=CONTENT_COLOR,
                 )
@@ -360,7 +354,7 @@ async def _generate_clips_for_user(
 
     if external_links:
         await interaction.followup.send(
-            "🔗 **Téléchargements externes** (trop lourd pour Discord) :\n"
+            "🔗 **PNG d’origine** (sans compression Discord, lien 72 h) :\n"
             + "\n".join(external_links),
             ephemeral=True,
         )
