@@ -37,20 +37,19 @@ def _content_type_for(path: Path) -> str:
     return "application/octet-stream"
 
 
-async def upload_to_external_host(path: Path, *, filename: str | None = None) -> str:
+async def upload_to_external_host(path: Path) -> str:
     """Upload a file to litterbox.catbox.moe (public URL, valid 72 hours)."""
     if not path.is_file():
         raise ClipAssemblyError(f"File not found: {path}")
 
-    upload_name = filename or path.name
     form = aiohttp.FormData()
     form.add_field("reqtype", "fileupload")
     form.add_field("time", EXTERNAL_LINK_TTL)
     form.add_field(
         "fileToUpload",
         path.read_bytes(),
-        filename=upload_name,
-        content_type=_content_type_for(Path(upload_name)),
+        filename=path.name,
+        content_type=_content_type_for(path),
     )
 
     timeout = aiohttp.ClientTimeout(total=300)
@@ -138,48 +137,17 @@ def _build_carousel_zip(slides: list[Path], dest: Path) -> Path:
     return dest
 
 
-def _slide_button_label(index: int, total: int) -> str:
-    if total == len(SLIDE_LABELS):
-        return SLIDE_LABELS[index - 1]
-    return f"Slide {index}"
-
-
-def _png_download_view(links: list[tuple[str, str]], zip_url: str | None) -> discord.ui.View:
-    """One link per original PNG so a phone can save each image, plus an optional ZIP."""
+def _zip_download_view(url: str) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
-    slot = 0
-    for index, (_filename, url) in enumerate(links, start=1):
-        view.add_item(
-            discord.ui.Button(
-                label=_slide_button_label(index, len(links))[:80],
-                style=discord.ButtonStyle.link,
-                url=url,
-                row=slot // 5,
-            )
+    view.add_item(
+        discord.ui.Button(
+            label="Télécharger les PNG",
+            style=discord.ButtonStyle.link,
+            url=url,
+            emoji="⬇️",
         )
-        slot += 1
-    if zip_url:
-        view.add_item(
-            discord.ui.Button(
-                label="ZIP (ordinateur)",
-                style=discord.ButtonStyle.link,
-                url=zip_url,
-                row=slot // 5,
-            )
-        )
+    )
     return view
-
-
-async def _original_png_links(slides: list[Path]) -> list[tuple[str, str]]:
-    import asyncio
-
-    named = _slide_names(slides)
-
-    async def _one(path: Path, filename: str) -> tuple[str, str]:
-        url = await upload_to_external_host(path, filename=filename)
-        return filename, url
-
-    return list(await asyncio.gather(*(_one(path, filename) for path, filename in named)))
 
 
 async def _zip_url(slides: list[Path]) -> str:
@@ -236,16 +204,11 @@ async def deliver_carousel_to_thread(
         raise CarouselAssemblyError(f"Fichiers carrousel manquants : {', '.join(missing)}")
 
     caption = f"{member.mention} 🎠 **{clip_label}**"
-    png_links: list[tuple[str, str]] = []
     zip_link: str | None = None
-    try:
-        png_links = await _original_png_links(slides)
-    except Exception as exc:
-        print(f"Original PNG upload failed for {clip_label}: {exc}")
     try:
         zip_link = await _zip_url(slides)
     except Exception as exc:
-        print(f"Original ZIP upload failed for {clip_label}: {exc}")
+        print(f"Original PNG upload failed for {clip_label}: {exc}")
 
     prepared = _slides_for_discord(slides)
     files = [discord.File(path, filename=filename) for path, filename in prepared]
@@ -266,21 +229,15 @@ async def deliver_carousel_to_thread(
                         preview_error = nested
                         break
 
-    if png_links or zip_link:
-        lines = [
-            f"{caption}",
-            "Sur le téléphone : ouvre chaque slide et **enregistre l’image**.",
-            "Ensuite dans Drive : **+ → Importer**, et choisis ces photos.",
-            "N’importe pas le ZIP sur Drive : le tel ne peut pas en sortir les slides.",
-            f"Liens valables **{EXTERNAL_LINK_TTL}**.",
-        ]
-        primary = png_links[0][1] if png_links else zip_link
+    if zip_link:
         await thread.send(
-            "\n".join(lines),
-            view=_png_download_view(png_links, zip_link),
+            f"{caption}\n"
+            "PNG d’origine, sans compression Discord. "
+            f"Lien valable **{EXTERNAL_LINK_TTL}** :\n{zip_link}",
+            view=_zip_download_view(zip_link),
             suppress_embeds=True,
         )
-        return "external", primary
+        return "external", zip_link
 
     if preview_error is not None:
         raise preview_error

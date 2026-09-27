@@ -83,9 +83,8 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
         description=(
             f"Salut {user.mention} — voici ton fil privé de posting.\n\n"
             f"Tu l’as ouvert via **{mode_label}**.\n\n"
-            "L’aperçu est dans le fil. Pour le téléphone : ouvre chaque slide, "
-            "enregistre l’image, puis importe ces photos dans Drive. "
-            "Pas le ZIP. Liens 72 h.\n\n"
+            "L’aperçu est dans le fil. Pour poster, utilise **Télécharger les PNG** "
+            "(fichiers d’origine, hors Discord, lien 72 h).\n\n"
             "Prêt à poster en carrousel Instagram / TikTok."
         ),
         color=CONTENT_COLOR,
@@ -321,17 +320,14 @@ async def _generate_clips_for_user(
         if created == len(pending) and created == count:
             await thread.send(
                 f"✅ Les **{created}** carrousel{'s' if created != 1 else ''} sont prêts. "
-        "Sur le tel, enregistre chaque slide, puis importe ces photos dans Drive.",
+        "Télécharge les PNG via le bouton, pas depuis l’aperçu Discord.",
             )
         elif created == 1:
             await thread.send(
-                "✅ Carrousel prêt — sur le tel, enregistre chaque slide (pas le ZIP), puis importe ces photos dans Drive."
+                "✅ Carrousel prêt — aperçu au-dessus, PNG d’origine via **Télécharger les PNG**."
             )
         elif created > 1:
-            await thread.send(
-                f"✅ **{created}** carrousels sont prêts. "
-                "Sur le tel, enregistre chaque slide, puis importe ces photos dans Drive."
-            )
+            await thread.send(f"✅ **{created}** carrousels sont prêts. PNG d’origine via **Télécharger les PNG**.")
 
     if count > 1 and 0 < created < count:
         errors.insert(0, f"Seuls **{created}/{count}** carrousels ont été livrés.")
