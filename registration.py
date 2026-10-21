@@ -10,7 +10,8 @@ from discord import app_commands
 
 from channel_utils import delete_bot_messages
 from embeds import EMBED_COLOR
-from notify_roles import notify_mentions, notify_role_id, notify_user_ids
+from notify_roles import notify_mentions
+from staff import is_staff as _is_staff
 
 REGISTRATION_TEMPLATE = "registration_welcome"
 DEFAULT_LOG_CHANNEL_ID = 0
@@ -433,19 +434,6 @@ def start_creator_role_sync(client: discord.Client) -> None:
 # ---------------------------------------------------------------------------
 
 REVIEW_PREFIX = "jobshift_reg"
-
-
-def _is_staff(interaction: discord.Interaction) -> bool:
-    if interaction.user.id in notify_user_ids():
-        return True
-    member = interaction.user if isinstance(interaction.user, discord.Member) else None
-    if member is None:
-        return False
-    perms = member.guild_permissions
-    if perms.administrator or perms.manage_guild:
-        return True
-    staff_role = notify_role_id()
-    return bool(staff_role and member.get_role(staff_role))
 
 
 class ReviewButton(
