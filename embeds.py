@@ -207,6 +207,24 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
         ),
         "color": EMBED_COLOR,
     },
+    "referral": {
+        "title": "Invite des créateurs. Gagne de l’argent. 💸",
+        "description": (
+            "Tu connais un créateur qui serait parfait pour JobShift ? Invite-le et gagne "
+            "des récompenses selon le contenu qu’il crée.\n\n"
+            "💰 Gagne **100 $** par créateur parrainé\n\n"
+            "• Invite un créateur avec ton lien de parrainage unique\n"
+            "• Il rejoint JobShift et commence à créer du contenu\n"
+            "• Son contenu atteint 100K vues → tu gagnes 100 $\n\n"
+            "**Exemple :**\n"
+            "Tu invites Sarah → Sarah crée 3 vidéos JobShift → sa première vidéo fait "
+            "60K vues, la deuxième 30K et la troisième 10K → **100K vues au total** → "
+            "tu gagnes **100 $**.\n\n"
+            "🔗 **Récupère ton lien de parrainage et suis tes gains ici :** "
+            "https://creator.tryjobshift.com/creator/affiliate"
+        ),
+        "color": EMBED_COLOR,
+    },
     "welcome": {
         "title": "👋 Bienvenue",
         "description": (
