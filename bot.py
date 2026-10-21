@@ -276,13 +276,13 @@ async def test_creator_signup(ctx: commands.Context):
     message = await log_creator_signup(bot, signup)
     if message is None:
         await ctx.send(
-            "Could not send notification — check `creator_signup_log_channel` in "
-            "`channel_config.json` and bot access to the Creators server.",
+            "Notification non envoyée — vérifie `creator_signup_log_channel` dans "
+            "`channel_config.json` et l’accès du bot au serveur Creators.",
             delete_after=12,
         )
         return
 
-    await ctx.send(f"Test notification sent: {message.jump_url}", delete_after=12)
+    await ctx.send(f"Notification de test envoyée : {message.jump_url}", delete_after=12)
     try:
         await ctx.message.delete()
     except discord.HTTPException:

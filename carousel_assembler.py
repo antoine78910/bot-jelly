@@ -27,11 +27,31 @@ class CarouselRecipe:
     slides: list[Path]
 
 
+AUGMENT_LABELS_FR = {
+    "none": "aucun",
+    "crop": "recadrage",
+    "grade": "étalonnage",
+    "grain": "grain",
+    "prop": "décor",
+    "ai": "IA",
+}
+
+COLOR_LABELS_FR = {
+    "pink": "rose",
+    "blue": "bleu",
+    "green": "vert",
+    "cream": "crème",
+    "notes": "notes",
+}
+
+
 def recipe_summary(recipe: CarouselRecipe) -> str:
     photos = ", ".join(f"`{name}`" for name in recipe.photo_names) or "—"
+    effect = AUGMENT_LABELS_FR.get(recipe.augment, recipe.augment)
+    color = COLOR_LABELS_FR.get(recipe.color, recipe.color)
     return (
         f"Accroche : {recipe.hook_preview}\n"
-        f"Style `{recipe.pair_style}` · effet `{recipe.augment}` · `{recipe.color}`\n"
+        f"Style `{recipe.pair_style}` · effet `{effect}` · `{color}`\n"
         f"Avatar `{recipe.avatar_name}` · photos {photos}"
     )
 

@@ -10,17 +10,17 @@ MUSIC_TEMPLATE = "music"
 MUSIC_COLOR = 0x9B59B6
 
 MAIN_SOUND = {
-    "label": "Original sound",
+    "label": "Son original",
     "url": "https://vm.tiktok.com/ZN9SDDs4nx3UM-zamrh/",
 }
 
 ALT_SOUNDS = [
     {
-        "label": "Original sound",
+        "label": "Son original",
         "url": "https://www.tiktok.com/music/original-sound-7646095563964467989",
     },
     {
-        "label": "Original sound",
+        "label": "Son original",
         "url": "https://www.tiktok.com/music/original-sound-7595993188188310283",
     },
     {
@@ -28,7 +28,7 @@ ALT_SOUNDS = [
         "url": "https://vm.tiktok.com/ZN9SDDoJbgHFd-82OiW/",
     },
     {
-        "label": "Original sound",
+        "label": "Son original",
         "url": "https://vt.tiktok.com/ZS9SDU6CdLt7Q-e6blR/",
     },
     {
@@ -36,7 +36,7 @@ ALT_SOUNDS = [
         "url": "https://vt.tiktok.com/ZS9SDUfGPkmJr-SbyoI/",
     },
     {
-        "label": "Original sound",
+        "label": "Son original",
         "url": "https://vt.tiktok.com/ZS9SDUuM46t44-F2LS1/",
     },
     {
@@ -87,7 +87,7 @@ class MusicLinksView(discord.ui.View):
             row = 1 + (index - 1) // 5
             self.add_item(
                 discord.ui.Button(
-                    label=f"Alt {index} · {item['label']}"[:80],
+                    label=f"Option {index} · {item['label']}"[:80],
                     style=discord.ButtonStyle.link,
                     url=item["url"],
                     row=row,

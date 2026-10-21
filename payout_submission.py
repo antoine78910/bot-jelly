@@ -63,7 +63,7 @@ def ticket_embed(user: discord.Member | discord.User, ticket_id: str) -> discord
         ),
         color=EMBED_COLOR,
     )
-    embed.set_footer(text=f"Ticket ID: {ticket_id}")
+    embed.set_footer(text=f"ID du ticket : {ticket_id}")
     return embed
 
 

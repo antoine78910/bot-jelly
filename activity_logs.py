@@ -91,7 +91,7 @@ async def log_member_join(client: discord.Client, member: discord.Member) -> Non
     embed.add_field(name="Membres", value=str(member_count), inline=True)
     if member.display_avatar:
         embed.set_thumbnail(url=member.display_avatar.url)
-    embed.set_footer(text="Feed arrivées Discord")
+    embed.set_footer(text="Journal des arrivées Discord")
     embed.timestamp = discord.utils.utcnow()
 
     ping = notify_role_mention()
@@ -130,13 +130,13 @@ async def log_content_generation(
     embed.add_field(name="Fil", value=thread.mention, inline=True)
 
     for output in outputs[:5]:
-        delivery = "Upload Discord"
+        delivery = "Envoi Discord"
         if output.url:
             delivery = f"[PNG d’origine]({output.url}) (72h)"
         value = f"{output.summary}\n**Livraison :** {delivery}"
         embed.add_field(name=output.label, value=value[:1024], inline=False)
 
-    embed.set_footer(text="Feed générateur de contenu")
+    embed.set_footer(text="Journal du générateur de contenu")
     embed.timestamp = discord.utils.utcnow()
 
     ping = notify_mentions()

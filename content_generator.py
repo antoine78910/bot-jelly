@@ -318,9 +318,14 @@ async def _generate_clips_for_user(
                 errors.append(f"Impossible d’envoyer {clip_label.lower()} : {exc}")
 
         if created == len(pending) and created == count:
+            ready = (
+                "✅ Ton carrousel est prêt."
+                if created == 1
+                else f"✅ Tes **{created}** carrousels sont prêts."
+            )
             await thread.send(
-                f"✅ Les **{created}** carrousel{'s' if created != 1 else ''} sont prêts. "
-        "Télécharge les PNG via le bouton, pas depuis l’aperçu Discord.",
+                f"{ready} Télécharge les PNG via **Télécharger le ZIP**, "
+                "pas depuis l’aperçu Discord."
             )
         elif created == 1:
             await thread.send(
