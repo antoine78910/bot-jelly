@@ -132,7 +132,7 @@ async def log_content_generation(
     for output in outputs[:5]:
         delivery = "Envoi Discord"
         if output.url:
-            delivery = f"[PNG d’origine]({output.url}) (72h)"
+            delivery = f"[Images d’origine]({output.url})"
         value = f"{output.summary}\n**Livraison :** {delivery}"
         embed.add_field(name=output.label, value=value[:1024], inline=False)
 

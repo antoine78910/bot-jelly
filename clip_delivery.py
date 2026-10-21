@@ -147,11 +147,11 @@ def _build_carousel_zip(slides: list[Path], dest: Path) -> Path:
     return dest
 
 
-def _zip_download_view(url: str) -> discord.ui.View:
+def _download_view(url: str, *, label: str) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
     view.add_item(
         discord.ui.Button(
-            label="Télécharger le ZIP",
+            label=label,
             style=discord.ButtonStyle.link,
             url=url,
             emoji="⬇️",
@@ -160,42 +160,20 @@ def _zip_download_view(url: str) -> discord.ui.View:
     return view
 
 
-async def _zip_url(slides: list[Path]) -> str:
-    zip_path = slides[0].parent / "carousel.zip"
-    _build_carousel_zip(slides, zip_path)
-    return await upload_to_external_host(zip_path)
+async def _self_hosted_url(slides: list[Path], clip_label: str) -> str | None:
+    import asyncio
 
+    from carousel_hosting import hosting_available, publish_carousel
 
-DISCORD_ALBUM_BUDGET = 8_000_000
-
-
-def _shrink_slide(path: Path, max_bytes: int) -> Path:
-    """JPEG copy small enough for a Discord album. Leaves the original in place."""
-    if path.stat().st_size <= max_bytes and path.suffix.lower() in {".jpg", ".jpeg"}:
-        return path
-    from PIL import Image
-
-    dest = path.with_name(f"{path.stem}_discord.jpg")
-    image = Image.open(path).convert("RGB")
-    quality = 95
-    while quality >= 80:
-        image.save(dest, "JPEG", quality=quality, optimize=True, subsampling=0)
-        if dest.stat().st_size <= max_bytes:
-            return dest
-        quality -= 5
-    return dest
-
-
-def _slides_for_discord(slides: list[Path]) -> list[tuple[Path, str]]:
-    named = _slide_names(slides)
-    if not named:
-        return []
-    per_file = max(350_000, DISCORD_ALBUM_BUDGET // len(named))
-    prepared: list[tuple[Path, str]] = []
-    for path, filename in named:
-        shrunk = _shrink_slide(path, per_file)
-        prepared.append((shrunk, Path(filename).with_suffix(shrunk.suffix).name))
-    return prepared
+    if not hosting_available():
+        return None
+    try:
+        return await asyncio.to_thread(
+            publish_carousel, _slide_names(slides), title=clip_label
+        )
+    except Exception as exc:
+        print(f"Carousel self-hosting failed for {clip_label}: {exc}")
+        return None
 
 
 async def deliver_carousel_to_thread(
@@ -205,7 +183,9 @@ async def deliver_carousel_to_thread(
     *,
     clip_label: str,
 ) -> tuple[str, str | None]:
-    """Send the 4 slides as one Discord album, plus a ZIP download button."""
+    """Post a link to the original PNGs hosted outside Discord. No image attachments."""
+    from carousel_hosting import LINK_TTL_LABEL
+
     if len(slides) < 1:
         raise CarouselAssemblyError("Aucune slide de carrousel à envoyer.")
 
@@ -213,60 +193,44 @@ async def deliver_carousel_to_thread(
     if missing:
         raise CarouselAssemblyError(f"Fichiers carrousel manquants : {', '.join(missing)}")
 
-    caption = f"{member.mention} 🎠 **{clip_label}**"
+    caption = f"{member.mention} 🎠 **{clip_label}** — {len(slides)} slides"
+
+    gallery = await _self_hosted_url(slides, clip_label)
+    if gallery:
+        await thread.send(
+            f"{caption}\n"
+            "Images en qualité d’origine (PNG), hors Discord : ouvre le lien pour les voir "
+            f"et les enregistrer. Lien valable **{LINK_TTL_LABEL}**.",
+            view=_download_view(gallery, label="Télécharger les images"),
+            suppress_embeds=True,
+        )
+        return "external", gallery
+
     zip_path = slides[0].parent / "carousel.zip"
     _build_carousel_zip(slides, zip_path)
-    zip_link: str | None = None
     try:
         zip_link = await upload_to_external_host(zip_path)
     except Exception as exc:
         print(f"Original ZIP upload failed for {clip_label}: {exc}")
+        zip_link = None
 
-    prepared = _slides_for_discord(slides)
-    files = [discord.File(path, filename=filename) for path, filename in prepared]
-    preview_error: discord.HTTPException | None = None
-
-    try:
-        await thread.send(caption, files=files)
-    except discord.HTTPException as exc:
-        if not is_payload_too_large(exc):
-            preview_error = exc
-        else:
-            for index, (path, filename) in enumerate(prepared, start=1):
-                label = caption if index == 1 else f"{caption} — slide {index}"
-                try:
-                    await thread.send(label, file=discord.File(path, filename=filename))
-                except discord.HTTPException as nested:
-                    if not is_payload_too_large(nested):
-                        preview_error = nested
-                        break
-
-    note = (
-        f"{caption}\n"
-        "PNG d’origine dans le ZIP : photo nette, sans grain, sans compression Discord."
-    )
     if zip_link:
-        note += f"\nLien valable **{EXTERNAL_LINK_TTL}** :\n{zip_link}"
-
-    try:
         await thread.send(
-            note,
-            file=discord.File(zip_path, filename="carrousel.zip"),
-            view=_zip_download_view(zip_link) if zip_link else None,
-            suppress_embeds=True,
-        )
-        return ("external" if zip_link else "discord"), zip_link
-    except discord.HTTPException as exc:
-        if not is_payload_too_large(exc) or not zip_link:
-            if preview_error is not None:
-                raise preview_error
-            raise
-        await thread.send(
-            note,
-            view=_zip_download_view(zip_link),
+            f"{caption}\n"
+            "PNG d’origine dans le ZIP, hors Discord. "
+            f"Lien valable **{EXTERNAL_LINK_TTL}**.",
+            view=_download_view(zip_link, label="Télécharger le ZIP"),
             suppress_embeds=True,
         )
         return "external", zip_link
+
+    # Last resort: a ZIP attachment is not recompressed by Discord, unlike images.
+    await thread.send(
+        f"{caption}\n"
+        "Le lien externe n’a pas pu être créé. Voici le ZIP des PNG d’origine.",
+        file=discord.File(zip_path, filename="carrousel.zip"),
+    )
+    return "discord", None
 
 
 async def _prepare(path: Path, *, emergency: bool) -> Path:

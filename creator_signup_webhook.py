@@ -65,6 +65,10 @@ async def start_creator_signup_webhook(bot) -> web.AppRunner | None:
     app.router.add_post("/webhooks/creator-application", _creator_application_handler)
     app.router.add_get("/health", lambda _: web.Response(text="OK"))
 
+    from carousel_hosting import register_routes
+
+    register_routes(app)
+
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
