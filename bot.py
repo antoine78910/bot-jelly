@@ -10,7 +10,13 @@ from embeds import MESSAGE_TEMPLATES
 from publisher import load_channel_config, publish_channel
 from content_generator import ContentGeneratorView
 from payout_submission import PayoutSubmitView, PayoutTicketView
-from registration import RegisterView
+from registration import (
+    RegisterView,
+    ReviewButton,
+    start_creator_role_sync,
+    sync_registration_log,
+    username_command,
+)
 
 load_dotenv(override=True)
 
@@ -72,6 +78,7 @@ async def on_ready():
     bot.add_view(PayoutSubmitView())
     bot.add_view(PayoutTicketView())
     bot.add_view(ContentGeneratorView())
+    bot.add_dynamic_items(ReviewButton)
 
     if _webhook_runner is None:
         from creator_signup_webhook import start_creator_signup_webhook
@@ -89,6 +96,12 @@ async def on_ready():
 
     if AUTO_PUBLISH:
         await publish_all_channels()
+
+    try:
+        await sync_registration_log(bot)
+    except Exception as exc:
+        print(f"[CREATOR] Registration sync failed: {exc}")
+    start_creator_role_sync(bot)
 
 
 @bot.event
@@ -563,6 +576,9 @@ async def varyimage_command(
         await interaction.followup.send(f"❌ {exc}", ephemeral=True)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+bot.tree.add_command(username_command)
 
 
 def _validate_token(token: str) -> None:

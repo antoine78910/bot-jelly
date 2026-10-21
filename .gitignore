@@ -4,6 +4,7 @@ assets/clips/output/
 carousel/output/
 carousel/delivered/
 !assets/clips/README.md
+/data/
 __pycache__/
 *.pyc
 .venv/
