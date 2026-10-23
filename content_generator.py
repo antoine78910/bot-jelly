@@ -69,6 +69,8 @@ def panel_embed() -> discord.Embed:
             "**Générer du contenu** — 1 carrousel\n"
             "**Générer un lot** — jusqu’à 5 carrousels (accroches, textes, CTA et photos différents)\n\n"
             "Tu choisis le template. L’avatar reste le même.\n\n"
+            "🧬 **Ton persona unique** : une fois ton inscription validée, lance `/persona` "
+            "avec une photo (toi ou une photo Pinterest) — il sera utilisé dans tous tes carrousels.\n\n"
             f"⭐ Avant de poster : ajoute tous les sons en favoris dans {music} "
             "pour les retrouver au moment de publier le carrousel."
         ),
@@ -451,6 +453,12 @@ async def _handle_clip_request(
     if not interaction.response.is_done():
         await interaction.response.defer(ephemeral=True)
 
+    # avatar_pack None = automatic: the creator's validated persona, else the default pack.
+    if not avatar_pack:
+        from persona import ensure_persona_pack
+
+        avatar_pack = await ensure_persona_pack(interaction.user.id)
+
     try:
         thread = await get_or_create_clips_thread(
             interaction.channel,
@@ -530,7 +538,8 @@ def _can_pick_avatar_pack(user_id: int) -> bool:
 def _avatar_pack_options() -> list[discord.SelectOption]:
     from carousel.generate_carousel import DEFAULT_AVATAR_PACK, _list_avatar_packs
 
-    packs = _list_avatar_packs() or [DEFAULT_AVATAR_PACK]
+    # Per-creator persona packs are applied automatically; keep them out of the staff picker.
+    packs = [p for p in _list_avatar_packs() if "_persona_" not in p] or [DEFAULT_AVATAR_PACK]
     options: list[discord.SelectOption] = []
     for pack in packs:
         label = AVATAR_PACK_LABELS.get(pack, pack.replace("_", " ").title())
@@ -566,7 +575,7 @@ class AvatarPackSelect(discord.ui.Select):
 
 
 class TemplateSelect(discord.ui.Select):
-    def __init__(self, *, mode: str, count: int, avatar_pack: str) -> None:
+    def __init__(self, *, mode: str, count: int, avatar_pack: str | None) -> None:
         self.mode = mode
         self.count = count
         self.avatar_pack = avatar_pack
@@ -623,7 +632,7 @@ class TemplateSelect(discord.ui.Select):
 
 
 class TemplatePickView(discord.ui.View):
-    def __init__(self, *, mode: str, count: int, avatar_pack: str) -> None:
+    def __init__(self, *, mode: str, count: int, avatar_pack: str | None) -> None:
         super().__init__(timeout=180)
         self.add_item(TemplateSelect(mode=mode, count=count, avatar_pack=avatar_pack))
 
@@ -640,8 +649,8 @@ async def _prompt_or_generate(
     mode: str,
     count: int = 1,
 ) -> None:
-    """Everyone picks a template. Avatar stays femme_noir unless staff chose a pack."""
-    from carousel.generate_carousel import DEFAULT_AVATAR_PACK
+    """Everyone picks a template. Avatar = the creator's persona, else femme_noir (staff can pick)."""
+    from persona import local_persona_pack
 
     if _can_pick_avatar_pack(interaction.user.id):
         await interaction.response.send_message(
@@ -650,12 +659,15 @@ async def _prompt_or_generate(
             ephemeral=True,
         )
         return
+    has_persona = local_persona_pack(interaction.user.id) is not None
     await interaction.response.send_message(
-        "Choisis le template. L’avatar reste le même.",
+        "Choisis le template. Ton persona sera utilisé comme avatar."
+        if has_persona
+        else "Choisis le template. L’avatar reste le même.",
         view=TemplatePickView(
             mode=mode,
             count=count,
-            avatar_pack=DEFAULT_AVATAR_PACK,
+            avatar_pack=None,
         ),
         ephemeral=True,
     )

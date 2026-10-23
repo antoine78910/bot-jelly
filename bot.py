@@ -10,6 +10,7 @@ from embeds import MESSAGE_TEMPLATES
 from publisher import load_channel_config, publish_channel
 from content_generator import ContentGeneratorView
 from payout_submission import PayoutSubmitView, PayoutTicketView
+import persona
 import support_ai
 from proof_drip import post_proof_command, say_command, start_proof_drip
 from registration import (
@@ -106,6 +107,7 @@ async def on_ready():
     start_creator_role_sync(bot)
     start_proof_drip(bot)
     await support_ai.start_support_ai(bot)
+    await persona.start_persona(bot)
 
 
 @bot.event
@@ -586,6 +588,7 @@ bot.tree.add_command(username_command)
 bot.tree.add_command(post_proof_command)
 bot.tree.add_command(say_command)
 support_ai.register(bot)
+persona.register(bot)
 
 
 def _validate_token(token: str) -> None:

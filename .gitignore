@@ -14,3 +14,6 @@ scripts/whop_broadcast_state.json
 scripts/whop_members_export.csv
 scripts/whop_members_export.json
 scripts/whop_emails_all.csv
+
+# Persona packs downloaded from Speel at runtime
+carousel/assets/avatars/*_persona_*/
