@@ -307,7 +307,7 @@ async def grant_creator_role(guild: discord.Guild | None, user_id: int, reason: 
 
 
 async def backfill_creator_roles(guild: discord.Guild, *, quiet: bool = False) -> None:
-    """Give the creator role to everyone who applied (not rejected) and is missing it."""
+    """Give the creator role to every approved applicant who is missing it."""
     role = guild.get_role(creator_role_id())
     if role is None:
         print(f"[CREATOR] Creator role {creator_role_id()} not found in {guild.name}.")
@@ -327,7 +327,7 @@ async def backfill_creator_roles(guild: discord.Guild, *, quiet: bool = False) -
 
     counts = {"granted": 0, "already": 0, "left": 0, "failed": 0}
     for record in list(_registrations.values()):
-        if record.get("status") == "rejected":
+        if record.get("status") != "approved":
             continue
         member = await _member(guild, int(record["discord_id"]))
         if member is None:
@@ -337,7 +337,7 @@ async def backfill_creator_roles(guild: discord.Guild, *, quiet: bool = False) -
             counts["already"] += 1
             continue
         try:
-            await member.add_roles(role, reason="Creator application on file")
+            await member.add_roles(role, reason="Creator application approved")
             counts["granted"] += 1
         except discord.HTTPException as exc:
             counts["failed"] += 1
@@ -530,15 +530,22 @@ async def review_registration(interaction: discord.Interaction, user_id: int, st
             await interaction.message.edit(embed=registration_embed(record), view=None)
         except discord.HTTPException:
             pass
+    role_granted = False
     if status == "approved":
-        await grant_creator_role(interaction.guild, user_id, "Creator application approved")
+        role_granted = await grant_creator_role(interaction.guild, user_id, "Creator application approved")
 
-    dm = (
-        "✅ Ton inscription à **JobShift Posting** est validée ! "
-        "Chauffe tes comptes, poste, et tes infos de paiement sont bien enregistrées."
-        if status == "approved"
-        else "Ton inscription à **JobShift Posting** n’a pas été retenue cette fois-ci."
-    )
+    if status == "approved":
+        from embeds import channel_mention
+
+        dm = (
+            "✅ **Ta demande a été acceptée !** Tu es maintenant officiellement **créateur JobShift**.\n\n"
+            f"Tu peux dès maintenant créer ton contenu : va dans {channel_mention('content_bot')} et clique sur "
+            "**Générer du contenu**. La première fois, tu crées ton **persona** (ton personnage unique, "
+            "à partir d’une photo), puis tes carrousels sont générés avec lui.\n\n"
+            "Tes infos de paiement sont bien enregistrées."
+        )
+    else:
+        dm = "Ton inscription à **JobShift Posting** n’a pas été retenue cette fois-ci."
     sent = False
     try:
         user = await interaction.client.fetch_user(user_id)
@@ -550,7 +557,11 @@ async def review_registration(interaction: discord.Interaction, user_id: int, st
     no_dm = "" if sent else " Impossible de lui envoyer un DM."
     if status == "approved":
         lookup = record["discord_username"] or discord_id
-        msg = f"Validée et enregistrée pour les paiements. Retrouve-la avec `/username nom:{lookup}`.{no_dm}"
+        role_note = "" if role_granted else " ⚠️ Rôle Creator non attribué (permission Manage Roles du bot ?)."
+        msg = (
+            f"Validée et enregistrée pour les paiements. Retrouve-la avec `/username nom:{lookup}`."
+            f"{role_note}{no_dm}"
+        )
     else:
         msg = f"Refusée.{no_dm}"
     await interaction.followup.send(msg, ephemeral=True)
@@ -610,10 +621,6 @@ class RegistrationModal(discord.ui.Modal, title="Inscription JobShift Posting"):
         _registrations[record["discord_id"]] = record
         _save_store()
 
-        role_granted = await grant_creator_role(
-            interaction.guild, interaction.user.id, "Creator application submitted"
-        )
-
         log_channel = interaction.client.get_channel(_log_channel_id())
         if isinstance(log_channel, discord.TextChannel):
             if previous and previous.get("message_id") and previous.get("status") == "pending":
@@ -633,11 +640,12 @@ class RegistrationModal(discord.ui.Modal, title="Inscription JobShift Posting"):
             except discord.HTTPException as exc:
                 print(f"[CREATOR] Registration log failed: {exc}")
 
-        description = "Tu es officiellement dans la campagne **JobShift Posting**."
-        if role_granted:
-            description += " Ton rôle **Creator** est activé."
-        description += "\nL’équipe vérifie ton inscription, tu recevras un DM dès qu’elle est validée."
-        confirm = discord.Embed(title="✅ Inscription terminée", description=description, color=EMBED_COLOR)
+        description = (
+            "Ta demande pour la campagne **JobShift Posting** est bien envoyée.\n"
+            "L’équipe la vérifie : dès qu’elle est acceptée, tu reçois ton rôle **Creator** "
+            "et un DM pour commencer à créer ton contenu."
+        )
+        confirm = discord.Embed(title="✅ Demande envoyée", description=description, color=EMBED_COLOR)
         await interaction.followup.send(embed=confirm, ephemeral=True)
 
 

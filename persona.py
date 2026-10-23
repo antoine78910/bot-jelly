@@ -35,6 +35,8 @@ _client: discord.Client | None = None
 _watchers: dict[int, asyncio.Task] = {}
 _shown: dict[int, dict[int, str]] = {}
 _pack_cache: dict[int, tuple[str | None, float]] = {}
+# Last known Speel run status per user, so « Générer du contenu » can answer within Discord's 3 s.
+_status_cache: dict[int, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -102,8 +104,15 @@ def _is_approved_creator(user_id: int) -> bool:
     return record.get("status") == "approved"
 
 
+def has_creator_role(member: discord.abc.User) -> bool:
+    from registration import creator_role_id
+
+    role_id = creator_role_id()
+    return bool(role_id and isinstance(member, discord.Member) and member.get_role(role_id))
+
+
 def can_create_persona(member: discord.abc.User) -> bool:
-    return is_staff_member(member) or _is_approved_creator(member.id)
+    return is_staff_member(member) or has_creator_role(member) or _is_approved_creator(member.id)
 
 
 def _can_manage(interaction: discord.Interaction, owner_id: int) -> bool:
@@ -241,7 +250,7 @@ def _validated_embed(run: dict) -> discord.Embed:
         title="✅ Persona validé",
         description=(
             f"**{run.get('done', 0)} images** enregistrées comme ton avatar.\n"
-            "Tes prochains carrousels (bouton **Générer du contenu**) utiliseront ton persona."
+            "Clique sur **Générer du contenu** : tes carrousels utiliseront maintenant ton persona."
         ),
         color=DONE_COLOR,
     )
@@ -381,6 +390,7 @@ class _ConfirmValidateView(discord.ui.View):
         except PersonaApiError as exc:
             await interaction.edit_original_response(content=f"❌ {_fr_error(exc)}")
             return
+        _status_cache[self.user_id] = "validated"
         _pack_cache.pop(self.user_id, None)
         pack = await _download_pack(run)
         if pack:
@@ -486,6 +496,8 @@ async def _watch(
     *,
     regenerated: bool,
     progress_ref: tuple[int, int] | None,
+    ephemeral: discord.WebhookMessage | None = None,
+    where: str = "",
 ) -> None:
     thread = await _resolve_thread(thread_id) if thread_id else None
     dest = _Destination(thread, user_id)
@@ -503,7 +515,9 @@ async def _watch(
             await asyncio.sleep(POLL_SECONDS)
             continue
         if run is None:
+            _status_cache.pop(user_id, None)
             return
+        _status_cache[user_id] = str(run.get("status") or "")
         if run.get("status") != "generating":
             if progress is not None:
                 try:
@@ -511,13 +525,24 @@ async def _watch(
                 except discord.HTTPException:
                     pass
             await _post_gallery(dest, run, regenerated=regenerated)
+            if ephemeral is not None:
+                try:
+                    await ephemeral.edit(
+                        content=f"✅ Ton persona est prêt ! Regarde la galerie dans {where} et valide-le.",
+                        embed=None,
+                    )
+                except discord.HTTPException:
+                    pass
             return
         done = int(run.get("done") or 0)
-        if progress is not None and done != last_done and not regenerated:
-            try:
-                await progress.edit(embed=_progress_embed(run))
-            except discord.HTTPException:
-                pass
+        if done != last_done and not regenerated:
+            for message in (progress, ephemeral):
+                if message is None:
+                    continue
+                try:
+                    await message.edit(embed=_progress_embed(run))
+                except discord.HTTPException:
+                    pass
         last_done = done
         await asyncio.sleep(POLL_SECONDS)
     await dest.send(
@@ -533,6 +558,8 @@ def _start_watcher(
     *,
     regenerated: bool = False,
     progress_ref: tuple[int, int] | None = None,
+    ephemeral: discord.WebhookMessage | None = None,
+    where: str = "",
 ) -> None:
     current = _watchers.get(user_id)
     if current and not current.done():
@@ -540,7 +567,14 @@ def _start_watcher(
 
     async def runner() -> None:
         try:
-            await _watch(user_id, thread_id, regenerated=regenerated, progress_ref=progress_ref)
+            await _watch(
+                user_id,
+                thread_id,
+                regenerated=regenerated,
+                progress_ref=progress_ref,
+                ephemeral=ephemeral,
+                where=where,
+            )
         except Exception as exc:
             print(f"[PERSONA] watcher crashed for {user_id}: {exc}")
         finally:
@@ -595,25 +629,152 @@ async def persona_command(
         await interaction.response.send_message("Utilise cette commande sur le serveur.", ephemeral=True)
         return
     if not can_create_persona(interaction.user):
+        await interaction.response.send_message(_not_creator_message(), ephemeral=True)
+        return
+    problem = _photo_problem(photo)
+    if problem:
+        await interaction.response.send_message(problem, ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await _start_persona_flow(interaction, photo, genre.value, genre.name)
+
+
+def _not_creator_message() -> str:
+    from embeds import channel_mention
+
+    return (
+        "Tu dois d’abord être **créateur** pour générer du contenu.\n"
+        f"Inscris-toi dans {channel_mention('apply')} : dès que l’équipe valide ta demande, "
+        "tu reçois ton rôle **Creator** et un DM de confirmation."
+    )
+
+
+def _photo_problem(photo: discord.Attachment | None) -> str | None:
+    if photo is None:
+        return "Ajoute une photo."
+    if not (photo.content_type or "").startswith("image/"):
+        return "Envoie une **image** (jpg, png ou webp)."
+    if photo.size > 15 * 1024 * 1024:
+        return "Image trop lourde (15 Mo max)."
+    if not is_configured():
+        return "Le persona n’est pas encore configuré côté serveur. Préviens le staff."
+    return None
+
+
+class PersonaModal(discord.ui.Modal, title="Crée ton persona"):
+    """Opened by « Générer du contenu » when the creator has no persona yet."""
+
+    genre = discord.ui.Label(
+        text="Ton persona est…",
+        component=discord.ui.Select(
+            placeholder="Choisis Femme ou Homme",
+            options=[
+                discord.SelectOption(label="Femme", value="femme", emoji="👩"),
+                discord.SelectOption(label="Homme", value="homme", emoji="👨"),
+            ],
+        ),
+    )
+    photo = discord.ui.Label(
+        text="Photo du visage",
+        description="Nette, de face, bien éclairée. Toi ou une photo trouvée sur Pinterest.",
+        component=discord.ui.FileUpload(min_values=1, max_values=1, required=True),
+    )
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        select = self.genre.component
+        upload = self.photo.component
+        gender = (select.values or ["femme"])[0] if isinstance(select, discord.ui.Select) else "femme"
+        files = list(upload.values) if isinstance(upload, discord.ui.FileUpload) else []
+        photo = files[0] if files else None
+        problem = _photo_problem(photo)
+        if problem:
+            await interaction.response.send_message(problem, ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await _start_persona_flow(interaction, photo, gender, "Homme" if gender == "homme" else "Femme")
+
+
+async def open_persona_setup(interaction: discord.Interaction) -> bool:
+    """« Générer du contenu »: run the persona step first when needed.
+
+    Returns True when the interaction was handled here (persona missing / generating / awaiting
+    validation), False when the creator has a validated persona and can pick a template.
+    Must be called before the interaction is answered (it may open a modal).
+    """
+    user_id = interaction.user.id
+    if local_persona_pack(user_id):
+        return False
+    status = _status_cache.get(user_id)
+    if status == "validated":
+        return False
+    if status is None:
+        await interaction.response.send_modal(PersonaModal())
+        return True
+    if status == "generating":
         await interaction.response.send_message(
-            "Ton inscription doit d’abord être **validée** par l’équipe avant de créer ton persona.",
+            "⏳ Ton persona est en cours de création (≈2–3 min). "
+            "La galerie arrive dans ton fil privé dès que c’est prêt.",
             ephemeral=True,
         )
-        return
-    if not (photo.content_type or "").startswith("image/"):
-        await interaction.response.send_message("Envoie une **image** (jpg, png ou webp).", ephemeral=True)
-        return
-    if photo.size > 15 * 1024 * 1024:
-        await interaction.response.send_message("Image trop lourde (15 Mo max).", ephemeral=True)
-        return
-    if not is_configured():
-        await interaction.response.send_message(
-            "Le persona n’est pas encore configuré côté serveur. Préviens le staff.", ephemeral=True
-        )
-        return
-
+        return True
     await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        run = await get_run(user_id)
+    except PersonaApiError as exc:
+        await interaction.followup.send(f"❌ {_fr_error(exc)}", ephemeral=True)
+        return True
+    if run and run.get("status") == "validated":
+        _status_cache[user_id] = "validated"
+        await ensure_persona_pack(user_id)
+        await interaction.followup.send(
+            "✅ Ton persona est validé. Reclique sur **Générer du contenu** pour créer ton carrousel.",
+            ephemeral=True,
+        )
+        return True
+    if run is None:
+        _status_cache.pop(user_id, None)
+        await interaction.followup.send(
+            "Reclique sur **Générer du contenu** pour créer ton persona.", ephemeral=True
+        )
+        return True
+    thread = await _creator_thread(interaction)
+    dest = _Destination(thread, user_id)
+    _shown.pop(user_id, None)
+    await _post_gallery(dest, run)
+    await interaction.followup.send(
+        "🧬 Avant ton premier carrousel, **valide ton persona** (tu peux régénérer chaque image une fois). "
+        f"La galerie est dans {_where(dest, thread)}.",
+        ephemeral=True,
+    )
+    return True
+
+
+async def _creator_thread(interaction: discord.Interaction) -> discord.Thread | None:
+    if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+        return None
+    content = _content_channel(interaction.guild)
+    if content is None:
+        return None
+    from content_generator import get_or_create_clips_thread
+
+    try:
+        return await get_or_create_clips_thread(content, interaction.user, mode="single")
+    except discord.HTTPException as exc:
+        print(f"[PERSONA] Clips thread unavailable for {interaction.user.id}, using DM: {exc}")
+        return None
+
+
+async def _start_persona_flow(
+    interaction: discord.Interaction,
+    photo: discord.Attachment,
+    gender: str,
+    gender_label: str,
+) -> None:
+    """Shared by the modal and /persona. The interaction must already be deferred."""
     user_id = interaction.user.id
+    if interaction.guild is None:
+        await interaction.followup.send("Utilise cette fonction sur le serveur.", ephemeral=True)
+        return
 
     try:
         existing = await get_run(user_id)
@@ -621,19 +782,12 @@ async def persona_command(
         await interaction.followup.send(f"❌ {_fr_error(exc)}", ephemeral=True)
         return
 
-    thread: discord.Thread | None = None
-    content = _content_channel(interaction.guild)
-    if content is not None:
-        from content_generator import get_or_create_clips_thread
-
-        try:
-            thread = await get_or_create_clips_thread(content, interaction.user, mode="single")
-        except discord.HTTPException as exc:
-            print(f"[PERSONA] Clips thread unavailable for {user_id}, using DM: {exc}")
+    thread = await _creator_thread(interaction)
     dest = _Destination(thread, user_id)
 
     if existing:
         status = existing.get("status")
+        _status_cache[user_id] = status
         if status == "generating":
             _start_watcher(user_id, thread.id if thread else None)
         else:
@@ -657,7 +811,7 @@ async def persona_command(
             "",
             {
                 "externalId": str(user_id),
-                "gender": genre.value,
+                "gender": gender,
                 "selfieUrl": photo.url,
                 "meta": {
                     "threadId": str(thread.id) if thread else "",
@@ -669,14 +823,26 @@ async def persona_command(
         await interaction.followup.send(f"❌ {_fr_error(exc)}", ephemeral=True)
         return
 
+    _status_cache[user_id] = "generating"
     _shown.pop(user_id, None)
     progress = await dest.send(f"{interaction.user.mention}", embed=_progress_embed(run))
     progress_ref = (progress.channel.id, progress.id) if progress is not None else None
-    _start_watcher(user_id, dest.thread.id if isinstance(dest.thread, discord.Thread) else None, progress_ref=progress_ref)
-    await interaction.followup.send(
-        f"✅ C’est parti ! Ton persona ({genre.name}) est en cours de création (≈2–3 min). "
-        f"Suis la progression dans {_where(dest, thread)}.",
-        ephemeral=True,
+    try:
+        ephemeral = await interaction.followup.send(
+            f"✅ C’est parti ! Ton persona ({gender_label}) est en cours de création. "
+            f"La galerie arrivera dans {_where(dest, thread)}.",
+            embed=_progress_embed(run),
+            ephemeral=True,
+            wait=True,
+        )
+    except discord.HTTPException:
+        ephemeral = None
+    _start_watcher(
+        user_id,
+        dest.thread.id if isinstance(dest.thread, discord.Thread) else None,
+        progress_ref=progress_ref,
+        ephemeral=ephemeral,
+        where=_where(dest, thread),
     )
 
 
@@ -700,12 +866,13 @@ async def persona_reset_command(interaction: discord.Interaction, membre: discor
         return
     _pack_cache.pop(membre.id, None)
     _shown.pop(membre.id, None)
+    _status_cache.pop(membre.id, None)
     import shutil
 
     for gender in ("femme", "homme"):
         shutil.rmtree(_avatars_dir() / persona_pack_name(membre.id, gender), ignore_errors=True)
     await interaction.followup.send(
-        f"🗑️ Persona de {membre.mention} supprimé. Il peut relancer `/persona` (nouvelle génération payante).",
+        f"🗑️ Persona de {membre.mention} supprimé. Son prochain clic sur **Générer du contenu** relancera la création (nouvelle génération payante).",
         ephemeral=True,
     )
 
@@ -744,6 +911,7 @@ async def start_persona(bot: discord.Client) -> None:
             ext = str(item.get("externalId") or "")
             if not ext.isdigit():
                 continue
+            _status_cache[int(ext)] = str(item.get("status") or "")
             if item.get("status") == "generating":
                 thread_id = str((item.get("meta") or {}).get("threadId") or "")
                 _start_watcher(int(ext), int(thread_id) if thread_id.isdigit() else None)

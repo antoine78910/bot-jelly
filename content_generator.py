@@ -68,9 +68,10 @@ def panel_embed() -> discord.Embed:
             "(accroche, méthode, ou liste d’entreprises).\n\n"
             "**Générer du contenu** — 1 carrousel\n"
             "**Générer un lot** — jusqu’à 5 carrousels (accroches, textes, CTA et photos différents)\n\n"
-            "Tu choisis le template. L’avatar reste le même.\n\n"
-            "🧬 **Ton persona unique** : une fois ton inscription validée, lance `/persona` "
-            "avec une photo (toi ou une photo Pinterest) — il sera utilisé dans tous tes carrousels.\n\n"
+            "🧬 **Premier clic : ton persona unique.** Envoie une photo (toi ou une photo Pinterest) "
+            "et choisis Femme ou Homme : 22 photos de ton personnage sont générées (≈2–3 min). "
+            "Tu peux régénérer chaque image une fois, puis tu valides.\n"
+            "Ensuite tu choisis le template et tes carrousels utilisent ton persona.\n\n"
             f"⭐ Avant de poster : ajoute tous les sons en favoris dans {music} "
             "pour les retrouver au moment de publier le carrousel."
         ),
@@ -649,9 +650,7 @@ async def _prompt_or_generate(
     mode: str,
     count: int = 1,
 ) -> None:
-    """Everyone picks a template. Avatar = the creator's persona, else femme_noir (staff can pick)."""
-    from persona import local_persona_pack
-
+    """Everyone picks a template. Avatar = the creator's persona (the owner keeps the pack picker)."""
     if _can_pick_avatar_pack(interaction.user.id):
         await interaction.response.send_message(
             "Choisis le pack d’avatars pour ce carrousel :",
@@ -659,11 +658,8 @@ async def _prompt_or_generate(
             ephemeral=True,
         )
         return
-    has_persona = local_persona_pack(interaction.user.id) is not None
     await interaction.response.send_message(
-        "Choisis le template. Ton persona sera utilisé comme avatar."
-        if has_persona
-        else "Choisis le template. L’avatar reste le même.",
+        "Choisis le template. Ton persona sera utilisé comme avatar.",
         view=TemplatePickView(
             mode=mode,
             count=count,
@@ -718,6 +714,8 @@ class ContentGeneratorView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ) -> None:
+        if await _creator_gate(interaction):
+            return
         await _prompt_or_generate(interaction, mode="single", count=1)
 
     @discord.ui.button(
@@ -731,7 +729,26 @@ class ContentGeneratorView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ) -> None:
+        if await _creator_gate(interaction):
+            return
         await interaction.response.send_modal(BatchGenerateModal())
+
+
+async def _creator_gate(interaction: discord.Interaction) -> bool:
+    """Creators need the Creator role and a validated persona before generating.
+
+    Returns True when this interaction was answered here (apply first, or persona step).
+    """
+    import persona
+
+    if _can_pick_avatar_pack(interaction.user.id):
+        return False
+    if not persona.can_create_persona(interaction.user):
+        await interaction.response.send_message(persona._not_creator_message(), ephemeral=True)
+        return True
+    if not persona.is_configured():
+        return False
+    return await persona.open_persona_setup(interaction)
 
 
 def content_generator_panel_fingerprint() -> str:
