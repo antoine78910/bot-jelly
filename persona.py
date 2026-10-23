@@ -303,10 +303,9 @@ class PersonaRegenSelect(
         except PersonaApiError as exc:
             await interaction.followup.send(f"❌ {_fr_error(exc)}", ephemeral=True)
             return
-        if isinstance(interaction.channel, discord.Thread):
-            _start_watcher(self.user_id, interaction.channel.id, regenerated=True)
+        _start_watcher(self.user_id, _thread_id(interaction), regenerated=True)
         await interaction.followup.send(
-            f"🔁 Image **#{slot}** en cours de régénération (≈1 min). Elle arrivera dans ce fil.",
+            f"🔁 Image **#{slot}** en cours de régénération (≈1 min). Elle arrivera ici.",
             ephemeral=True,
         )
 
@@ -359,15 +358,13 @@ class PersonaActionButton(
             await interaction.followup.send("Aucun persona trouvé.", ephemeral=True)
             return
         if run.get("status") == "generating":
-            if isinstance(interaction.channel, discord.Thread):
-                _start_watcher(self.user_id, interaction.channel.id)
+            _start_watcher(self.user_id, _thread_id(interaction))
             await interaction.followup.send(
                 f"⏳ {run.get('done', 0)}/{run.get('total', 0)} images prêtes…", ephemeral=True
             )
             return
-        if isinstance(interaction.channel, discord.Thread):
-            _shown.pop(self.user_id, None)
-            await _post_gallery(interaction.channel, run)
+        _shown.pop(self.user_id, None)
+        await _post_gallery(_here(interaction), run)
         await interaction.followup.send("Galerie à jour.", ephemeral=True)
 
 
@@ -389,8 +386,18 @@ class _ConfirmValidateView(discord.ui.View):
         if pack:
             _pack_cache[self.user_id] = (pack, time.time() + 10 * 365 * 86400)
         await interaction.edit_original_response(content="✅ Persona validé.")
-        if isinstance(interaction.channel, discord.Thread):
-            await interaction.channel.send(embed=_validated_embed(run))
+        await _Destination(_here(interaction), self.user_id).send(embed=_validated_embed(run))
+
+
+def _here(interaction: discord.Interaction) -> discord.abc.Messageable | None:
+    """Channel of a gallery button: the creator's thread, or their DMs (fallback delivery)."""
+    channel = interaction.channel
+    return channel if isinstance(channel, (discord.Thread, discord.DMChannel)) else None
+
+
+def _thread_id(interaction: discord.Interaction) -> int | None:
+    channel = interaction.channel
+    return channel.id if isinstance(channel, discord.Thread) else None
 
 
 def _control_view(run: dict) -> discord.ui.View:
@@ -407,8 +414,43 @@ def _control_view(run: dict) -> discord.ui.View:
 # Watching a run
 # ---------------------------------------------------------------------------
 
-async def _post_gallery(thread: discord.Thread, run: dict, *, regenerated: bool = False) -> None:
+class _Destination:
+    """Thread first; falls back to the creator's DMs when the bot cannot post in the thread."""
+
+    def __init__(self, thread: discord.abc.Messageable | None, user_id: int) -> None:
+        self.thread = thread
+        self.user_id = user_id
+        self._dm: discord.abc.Messageable | None = None
+
+    async def _dm_channel(self) -> discord.abc.Messageable | None:
+        if self._dm is None and _client is not None:
+            try:
+                user = _client.get_user(self.user_id) or await _client.fetch_user(self.user_id)
+                self._dm = await user.create_dm()
+            except discord.HTTPException:
+                return None
+        return self._dm
+
+    async def send(self, *args: Any, **kwargs: Any) -> discord.Message | None:
+        if self.thread is not None:
+            try:
+                return await self.thread.send(*args, **kwargs)
+            except discord.HTTPException as exc:
+                print(f"[PERSONA] Thread send failed for {self.user_id}, using DM: {exc}")
+                self.thread = None
+        dm = await self._dm_channel()
+        if dm is None:
+            return None
+        try:
+            return await dm.send(*args, **kwargs)
+        except discord.HTTPException as exc:
+            print(f"[PERSONA] DM send failed for {self.user_id}: {exc}")
+            return None
+
+
+async def _post_gallery(thread: discord.abc.Messageable | None, run: dict, *, regenerated: bool = False) -> None:
     user_id = int(run["externalId"])
+    dest = thread if isinstance(thread, _Destination) else _Destination(thread, user_id)
     shown = _shown.setdefault(user_id, {})
     fresh = [
         s
@@ -417,13 +459,13 @@ async def _post_gallery(thread: discord.Thread, run: dict, *, regenerated: bool 
     ]
     embeds = _image_embeds(fresh, regenerated=regenerated)
     for start in range(0, len(embeds), EMBEDS_PER_MESSAGE):
-        await thread.send(embeds=embeds[start : start + EMBEDS_PER_MESSAGE])
+        await dest.send(embeds=embeds[start : start + EMBEDS_PER_MESSAGE])
     for s in fresh:
         shown[int(s["index"])] = s["imageUrl"]
     if run.get("status") == "validated":
-        await thread.send(embed=_validated_embed(run), view=_control_view(run))
+        await dest.send(embed=_validated_embed(run), view=_control_view(run))
     else:
-        await thread.send(f"<@{user_id}>", embed=_control_embed(run), view=_control_view(run))
+        await dest.send(f"<@{user_id}>", embed=_control_embed(run), view=_control_view(run))
 
 
 async def _resolve_thread(thread_id: int) -> discord.Thread | None:
@@ -438,17 +480,19 @@ async def _resolve_thread(thread_id: int) -> discord.Thread | None:
     return channel if isinstance(channel, discord.Thread) else None
 
 
-async def _watch(user_id: int, thread_id: int, *, regenerated: bool, progress_id: int | None) -> None:
-    thread = await _resolve_thread(thread_id)
-    if thread is None:
-        print(f"[PERSONA] Thread {thread_id} not found for {user_id}")
-        return
-    progress: discord.Message | None = None
-    if progress_id:
-        try:
-            progress = await thread.fetch_message(progress_id)
-        except discord.HTTPException:
-            progress = None
+async def _watch(
+    user_id: int,
+    thread_id: int | None,
+    *,
+    regenerated: bool,
+    progress_ref: tuple[int, int] | None,
+) -> None:
+    thread = await _resolve_thread(thread_id) if thread_id else None
+    dest = _Destination(thread, user_id)
+    progress: discord.PartialMessage | None = None
+    if progress_ref and _client is not None:
+        channel_id, message_id = progress_ref
+        progress = _client.get_partial_messageable(channel_id).get_partial_message(message_id)
     deadline = time.time() + WATCH_TIMEOUT_SECONDS
     last_done = -1
     while time.time() < deadline:
@@ -466,7 +510,7 @@ async def _watch(user_id: int, thread_id: int, *, regenerated: bool, progress_id
                     await progress.delete()
                 except discord.HTTPException:
                     pass
-            await _post_gallery(thread, run, regenerated=regenerated)
+            await _post_gallery(dest, run, regenerated=regenerated)
             return
         done = int(run.get("done") or 0)
         if progress is not None and done != last_done and not regenerated:
@@ -476,22 +520,19 @@ async def _watch(user_id: int, thread_id: int, *, regenerated: bool, progress_id
                 pass
         last_done = done
         await asyncio.sleep(POLL_SECONDS)
-    try:
-        await thread.send(
-            f"<@{user_id}> ⏳ La génération prend plus de temps que prévu. "
-            "Clique sur **Actualiser** plus tard.",
-            view=_control_view({"externalId": str(user_id), "status": "generating"}),
-        )
-    except discord.HTTPException:
-        pass
+    await dest.send(
+        f"<@{user_id}> ⏳ La génération prend plus de temps que prévu. "
+        "Clique sur **Actualiser** plus tard.",
+        view=_control_view({"externalId": str(user_id), "status": "generating"}),
+    )
 
 
 def _start_watcher(
     user_id: int,
-    thread_id: int,
+    thread_id: int | None,
     *,
     regenerated: bool = False,
-    progress_id: int | None = None,
+    progress_ref: tuple[int, int] | None = None,
 ) -> None:
     current = _watchers.get(user_id)
     if current and not current.done():
@@ -499,7 +540,7 @@ def _start_watcher(
 
     async def runner() -> None:
         try:
-            await _watch(user_id, thread_id, regenerated=regenerated, progress_id=progress_id)
+            await _watch(user_id, thread_id, regenerated=regenerated, progress_ref=progress_ref)
         except Exception as exc:
             print(f"[PERSONA] watcher crashed for {user_id}: {exc}")
         finally:
@@ -580,22 +621,24 @@ async def persona_command(
         await interaction.followup.send(f"❌ {_fr_error(exc)}", ephemeral=True)
         return
 
+    thread: discord.Thread | None = None
     content = _content_channel(interaction.guild)
-    if content is None:
-        await interaction.followup.send("Salon du générateur introuvable. Préviens le staff.", ephemeral=True)
-        return
-    from content_generator import get_or_create_clips_thread
+    if content is not None:
+        from content_generator import get_or_create_clips_thread
 
-    try:
-        thread = await get_or_create_clips_thread(content, interaction.user, mode="single")
-    except discord.HTTPException as exc:
-        await interaction.followup.send(f"❌ Impossible de créer ton fil privé : {exc}", ephemeral=True)
-        return
+        try:
+            thread = await get_or_create_clips_thread(content, interaction.user, mode="single")
+        except discord.HTTPException as exc:
+            print(f"[PERSONA] Clips thread unavailable for {user_id}, using DM: {exc}")
+    dest = _Destination(thread, user_id)
 
     if existing:
         status = existing.get("status")
         if status == "generating":
-            _start_watcher(user_id, thread.id)
+            _start_watcher(user_id, thread.id if thread else None)
+        else:
+            _shown.pop(user_id, None)
+            await _post_gallery(dest, existing)
         label = {
             "generating": "en cours de génération",
             "ready": "prêt, en attente de ta validation",
@@ -603,7 +646,7 @@ async def persona_command(
         }.get(status, status)
         await interaction.followup.send(
             f"Tu as déjà un persona ({label}). Une seule génération par personne. "
-            f"Retrouve-le dans {thread.mention}.",
+            f"Retrouve-le dans {_where(dest, thread)}.",
             ephemeral=True,
         )
         return
@@ -616,7 +659,10 @@ async def persona_command(
                 "externalId": str(user_id),
                 "gender": genre.value,
                 "selfieUrl": photo.url,
-                "meta": {"threadId": str(thread.id), "guildId": str(interaction.guild.id)},
+                "meta": {
+                    "threadId": str(thread.id) if thread else "",
+                    "guildId": str(interaction.guild.id),
+                },
             },
         )
     except PersonaApiError as exc:
@@ -624,13 +670,20 @@ async def persona_command(
         return
 
     _shown.pop(user_id, None)
-    progress = await thread.send(f"{interaction.user.mention}", embed=_progress_embed(run))
-    _start_watcher(user_id, thread.id, progress_id=progress.id)
+    progress = await dest.send(f"{interaction.user.mention}", embed=_progress_embed(run))
+    progress_ref = (progress.channel.id, progress.id) if progress is not None else None
+    _start_watcher(user_id, dest.thread.id if isinstance(dest.thread, discord.Thread) else None, progress_ref=progress_ref)
     await interaction.followup.send(
         f"✅ C’est parti ! Ton persona ({genre.name}) est en cours de création (≈2–3 min). "
-        f"Suis la progression dans {thread.mention}.",
+        f"Suis la progression dans {_where(dest, thread)}.",
         ephemeral=True,
     )
+
+
+def _where(dest: _Destination, thread: discord.Thread | None) -> str:
+    if thread is not None and dest.thread is thread:
+        return thread.mention
+    return "tes messages privés (le bot ne peut pas écrire dans ton fil)"
 
 
 @app_commands.command(name="persona-reset", description="[Staff] Autorise un créateur à refaire son persona")
@@ -693,9 +746,8 @@ async def start_persona(bot: discord.Client) -> None:
                 continue
             if item.get("status") == "generating":
                 thread_id = str((item.get("meta") or {}).get("threadId") or "")
-                if thread_id.isdigit():
-                    _start_watcher(int(ext), int(thread_id))
-                    resumed += 1
+                _start_watcher(int(ext), int(thread_id) if thread_id.isdigit() else None)
+                resumed += 1
             elif item.get("status") == "validated":
                 await ensure_persona_pack(int(ext))
         print(f"[PERSONA] {len(runs)} run(s), {resumed} watcher(s) resumed")
