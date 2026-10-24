@@ -317,6 +317,14 @@ async def _generate_clips_for_user(
                     external_links.append(f"**{clip_label}:** {url}")
             except CarouselAssemblyError as exc:
                 errors.append(f"{clip_label} échoué : {exc}")
+            except discord.Forbidden as exc:
+                print(f"[CONTENT] Cannot post in thread {thread.id}: {exc}")
+                errors.append(
+                    "Le bot n’a pas le droit d’écrire dans ton fil privé (permissions du salon). "
+                    f"Un admin doit autoriser le rôle **{thread.guild.me.top_role.name if thread.guild and thread.guild.me else 'du bot'}** "
+                    f"à « Envoyer des messages dans les fils » sur {parent_channel.mention}."
+                )
+                break
             except discord.HTTPException as exc:
                 errors.append(f"Impossible d’envoyer {clip_label.lower()} : {exc}")
 
