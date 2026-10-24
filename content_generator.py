@@ -349,33 +349,6 @@ async def _generate_clips_for_user(
     if count > 1 and 0 < created < count:
         errors.insert(0, f"Seuls **{created}/{count}** carrousels ont été livrés.")
 
-    if external_links and not errors:
-        try:
-            await progress_message.edit(
-                embed=discord.Embed(
-                    description=(
-                        f"✅ **Lot terminé — {created}/{count} carrousels**\n"
-                        f"Les liens des images sont dans {thread.mention}."
-                    ),
-                    color=CONTENT_COLOR,
-                )
-            )
-        except discord.HTTPException:
-            pass
-
-    if created == 0 and errors:
-        try:
-            await progress_message.delete()
-        except discord.HTTPException:
-            pass
-
-    if external_links:
-        await interaction.followup.send(
-            "🔗 **Images en qualité d’origine** (hors Discord) :\n"
-            + "\n".join(external_links),
-            ephemeral=True,
-        )
-
     if created > 0 and delivered_outputs and interaction.client:
         from activity_logs import log_content_generation
 
@@ -414,12 +387,24 @@ async def _send_ephemeral_errors(
     )
 
 
-class _SilentProgress:
+class _OriginalResponseProgress:
+    """Progress lives in the single ephemeral reply; results only go to the thread."""
+
+    def __init__(self, interaction: discord.Interaction) -> None:
+        self.interaction = interaction
+        self.id = interaction.id
+
     async def edit(self, **kwargs) -> None:
-        return None
+        try:
+            await self.interaction.edit_original_response(content=None, view=None, **kwargs)
+        except discord.HTTPException:
+            pass
 
     async def delete(self) -> None:
-        return None
+        try:
+            await self.interaction.delete_original_response()
+        except discord.HTTPException:
+            pass
 
 
 async def _show_status(interaction: discord.Interaction, text: str) -> None:
@@ -480,14 +465,8 @@ async def _handle_clip_request(
         return
 
     count = max(1, min(5, count))
-    try:
-        progress_message = await interaction.followup.send(
-            embed=progress_embed(1, count),
-            ephemeral=True,
-            wait=True,
-        )
-    except discord.HTTPException:
-        progress_message = _SilentProgress()
+    progress_message = _OriginalResponseProgress(interaction)
+    await progress_message.edit(embed=progress_embed(1, count))
 
     try:
         created, errors, _external = await _generate_clips_for_user(
@@ -511,13 +490,11 @@ async def _handle_clip_request(
         return
 
     if created:
-        note = ""
         if errors:
-            note = "\n" + "\n".join(f"• {line}" for line in errors)
-        await _show_status(
-            interaction,
-            f"✅ Posté dans {thread.mention}.{note}",
-        )
+            note = "\n".join(f"• {line}" for line in errors)
+            await _show_status(interaction, f"⚠️ {note}")
+        else:
+            await progress_message.delete()
         return
 
     body = "\n".join(f"• {line}" for line in errors) or "Aucun carrousel produit."
