@@ -2,6 +2,8 @@
 # ! = white box / black text.  !!segment = white text on the pâté color.
 # ^ = pin this pâté to the top.  ~ = small badge.
 # {{a|b|c}} = pick one at random (~10–20% wording variation).
+# [[féminin|masculin]] = follows the avatar's gender (AVATAR_PACK_GENDERS). Can hold {{…}}.
+#   Everything said in the first person by the avatar must be gendered this way.
 # # style: routine|etape|template2  → keeps slides 1–4 coherent (same family).
 # Sections: === hooks === (1)  === method === (2)  === jellyjob === (3)  === recap === (4)
 # Refs: assets/references/hooks/  assets/references/method/
@@ -13,7 +15,7 @@ Voici la {{méthode|technique}} qui me|permet de trouver un|{{travail|job|CDI}} 
 
 ---
 
-POV : {{ton mari a trouvé|t'as trouvé}}|{{son|ton}} CDI ({{hyper|très}} bien payé)|grâce à {{tes conseils|Google Emploi}} 💋
+POV : [[{{ton mari|ton copain}}|{{ta femme|ta copine}}]] a trouvé|son CDI ({{hyper|très}} bien payé)|grâce à {{tes conseils|Google Emploi}} 💋
 ({{J'ai pas été RH 3 ans|J'ai pas fait RH 3 ans}}|pour rien 😭)
 !({{Voici la stratégie|Voici la méthode|Swipe pour la méthode}})
 
@@ -122,7 +124,7 @@ JobShift
 Et pour finir|De {{8h15 à 8h20|8h15 à 8h25}}
 J'{{envoie toutes mes candidatures|envoie mes candidatures}}
 Et voilà, en {{20 minutes|20 min}} j'ai|postulé avec {{EXCELLENCE|un CV au top}}|à toutes les offres {{récentes|fraîches}}|des {{dernières 24H|dernières 24h}}
-Ce qui fait de moi un|candidat qui a des chances|{{énormes|réelles}} d'être {{rappelé|contacté}}
+Ce qui fait de moi [[une|un]]|[[candidate|candidat]] qui a des chances|{{énormes|réelles}} d'être {{rappelé[[e|]]|contacté[[e|]]}}
 
 ---
 
@@ -169,14 +171,14 @@ POV : {{Je ne suis plus en RH|Je ne suis plus RH}}|{{donc, je peux me le|alors j
 # style: template2
 # Template 2 — badge haut + accroche bas. Ref: piston / sauveuse.
 ^~🚨 {{CDI / Alternance / Stage|CDI, Alternance, Stage|CDI / Alternance / Stages}}
-{{Tous ceux qui n'ont pas|Ceux qui n'ont pas}}|de PISTON, {{je suis votre|je suis là, votre}}|{{sauveuse|sauveuse,}} 👩‍🏫
+{{Tous ceux qui n'ont pas|Ceux qui n'ont pas}}|de PISTON, {{je suis votre|je suis là, votre}}|[[{{sauveuse|sauveuse,}} 👩‍🏫|{{sauveur|sauveur,}} 👨‍🏫]]
 {{Je n'ai pas été RH pour ne|J'ai pas été RH pour ne}}|pas aider les gens 📝
 
 ---
 
 # style: template2
 # Template 2 — POV mari. Pastilles centrées, dernière en blanc.
-POV : {{ton mari a trouvé|t'as trouvé}}|{{son|ton}} CDI ({{hyper|très}} bien payé)|grâce à {{tes conseils|tes astuces}} 💋
+POV : [[{{ton mari|ton copain}}|{{ta femme|ta copine}}]] a trouvé|son CDI ({{hyper|très}} bien payé)|grâce à {{tes conseils|tes astuces}} 💋
 ({{J'ai pas été RH 3 ans|J'ai pas fait RH 3 ans}}|pour rien 😭)
 !({{(Voici la stratégie)|(Voici la méthode)}})
 

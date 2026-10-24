@@ -25,6 +25,7 @@ class CarouselRecipe:
     hook_preview: str
     job_dir: Path
     slides: list[Path]
+    avatar_gender: str = "f"
 
 
 AUGMENT_LABELS_FR = {
@@ -49,10 +50,13 @@ def recipe_summary(recipe: CarouselRecipe) -> str:
     photos = ", ".join(f"`{name}`" for name in recipe.photo_names) or "—"
     effect = AUGMENT_LABELS_FR.get(recipe.augment, recipe.augment)
     color = COLOR_LABELS_FR.get(recipe.color, recipe.color)
+    gender = "" if recipe.pair_style == "template3" else (
+        " (homme)" if recipe.avatar_gender == "m" else " (femme)"
+    )
     return (
         f"Accroche : {recipe.hook_preview}\n"
         f"Style `{recipe.pair_style}` · effet `{effect}` · `{color}`\n"
-        f"Avatar `{recipe.avatar_name}` · photos {photos}"
+        f"Avatar `{recipe.avatar_name}`{gender} · photos {photos}"
     )
 
 
@@ -90,6 +94,7 @@ def assemble_carousel(
         DEFAULT_AVATAR_PACK,
         DEFAULT_COLOR,
         TIKTOK_STYLE,
+        avatar_gender,
         generate_type1_carousel,
     )
 
@@ -143,6 +148,7 @@ def assemble_carousel(
         hook_preview=build.hook_preview,
         job_dir=job_dir,
         slides=slides,
+        avatar_gender=avatar_gender(chosen_pack),
     )
 
 

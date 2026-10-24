@@ -400,12 +400,29 @@ def _is_feminine_only_photo(path: Path) -> bool:
 
 _MALE_AVATAR_PREFIXES = ("homme", "tisme", "tismey")
 
+# Who is on each avatar pack: "f" (femme) or "m" (homme). Drives gendered captions
+# ([[féminin|masculin]]) and the female-only photo filter. Add every new pack here;
+# persona packs (homme_/femme_ prefix) are detected from their name.
+AVATAR_PACK_GENDERS = {
+    "femme_noir": "f",
+    "femme_noir_2": "f",
+    "rousse": "f",
+    "homme_blanc": "m",
+    "tisme_sucre": "m",
+}
+
+
+def avatar_gender(pack: str | None) -> str:
+    name = (pack or DEFAULT_AVATAR_PACK).strip().lower().replace(" ", "_").replace("é", "e")
+    if name in AVATAR_PACK_GENDERS:
+        return AVATAR_PACK_GENDERS[name]
+    if name.startswith(_MALE_AVATAR_PREFIXES):
+        return "m"
+    return "f"
+
 
 def _is_feminine_avatar_pack(pack: str | None) -> bool:
-    name = (pack or "").strip().lower().replace(" ", "_").replace("é", "e")
-    if not name:
-        return True
-    return not name.startswith(_MALE_AVATAR_PREFIXES)
+    return avatar_gender(pack) == "f"
 
 
 def _collect_photos(pack: str | None = None, *, avatar_pack: str | None = None) -> list[Path]:
@@ -779,6 +796,33 @@ def _apply_variations(text: str) -> str:
     return _CHOICE_RE.sub(pick, text)
 
 
+def _apply_gender(text: str, gender: str = "f") -> str:
+    """Resolve [[féminin|masculin]] for the avatar. Pipes inside {{…}} belong to the variation."""
+    out: list[str] = []
+    i = 0
+    while True:
+        start = text.find("[[", i)
+        end = text.find("]]", start) if start >= 0 else -1
+        if start < 0 or end < 0:
+            out.append(text[i:])
+            return "".join(out)
+        out.append(text[i:start])
+        body = text[start + 2 : end]
+        depth = 0
+        split = -1
+        for k, ch in enumerate(body):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            elif ch == "|" and depth == 0:
+                split = k
+                break
+        feminine, masculine = (body, "") if split < 0 else (body[:split], body[split + 1 :])
+        out.append(masculine if gender == "m" else feminine)
+        i = end + 2
+
+
 def _caption_fields(item: tuple) -> tuple[str, bool, bool, bool]:
     """(text, emphasis, pin_top, small). Older 2-tuples still work."""
     text = item[0]
@@ -788,12 +832,13 @@ def _caption_fields(item: tuple) -> tuple[str, bool, bool, bool]:
     return text, emphasis, pin_top, small
 
 
-def _parse_caption_block(raw: str) -> list[tuple[str, bool, bool, bool]]:
+def _parse_caption_block(raw: str, gender: str = "f") -> list[tuple[str, bool, bool, bool]]:
     """
     Prefixes, in any order, before the text:
       ^  pin this pâté to the top (rest stays centered below)
       ~  small badge
       !  white box / black text (not !! white-on-color)
+    [[féminin|masculin]] follows the avatar's gender.
     """
     lines: list[tuple[str, bool, bool, bool]] = []
     for ln in raw.strip().splitlines():
@@ -814,7 +859,7 @@ def _parse_caption_block(raw: str) -> list[tuple[str, bool, bool, bool]]:
             ln = ln[1:].strip()
         if not ln:
             continue
-        lines.append((_apply_variations(ln), emphasis, pin_top, small))
+        lines.append((_apply_variations(_apply_gender(ln, gender)), emphasis, pin_top, small))
     return lines
 
 
@@ -903,7 +948,9 @@ def _block_has_text(raw: str) -> bool:
     return False
 
 
-def _pick_caption_set(role: str = "hooks", style: str | None = None) -> list[tuple[str, bool]]:
+def _pick_caption_set(
+    role: str = "hooks", style: str | None = None, gender: str = "f"
+) -> list[tuple[str, bool]]:
     """Pick a template for role (optionally filtered by style). Fresh {{…}} each time."""
     if not CAPTIONS_FILE.exists():
         return list(REFERENCE_CAPTION)
@@ -911,7 +958,7 @@ def _pick_caption_set(role: str = "hooks", style: str | None = None) -> list[tup
     if "===" not in content:
         blocks = [b.strip() for b in content.split("---") if b.strip()]
         usable = [b for b in blocks if _block_has_text(b)]
-        return _parse_caption_block(random.choice(usable)) if usable else list(REFERENCE_CAPTION)
+        return _parse_caption_block(random.choice(usable), gender) if usable else list(REFERENCE_CAPTION)
     if style:
         by_style = _blocks_by_style(role)
         blocks = by_style.get(style) or by_style.get("routine") or []
@@ -925,7 +972,7 @@ def _pick_caption_set(role: str = "hooks", style: str | None = None) -> list[tup
     usable = [b for b in blocks if _block_has_text(b)]
     if not usable:
         return list(REFERENCE_CAPTION)
-    return _parse_caption_block(random.choice(usable))
+    return _parse_caption_block(random.choice(usable), gender)
 
 
 def _collect_mix_photos() -> list[Path]:
@@ -960,7 +1007,7 @@ def _complete_caption_styles() -> list[str]:
     return styles
 
 
-def _pick_paired_slides(forced_style: str | None = None) -> tuple[
+def _pick_paired_slides(forced_style: str | None = None, gender: str = "f") -> tuple[
     str,
     list[tuple[str, bool]],
     list[tuple[str, bool]],
@@ -979,9 +1026,9 @@ def _pick_paired_slides(forced_style: str | None = None) -> tuple[
         classic = [s for s in styles if s in ("routine", "etape")]
         styles = classic or styles
     style = random.choice(styles)
-    method = _pick_caption_set("method", style=style)
-    jellyjob = _pick_caption_set("jellyjob", style=style)
-    recap = _pick_caption_set("recap", style=style)
+    method = _pick_caption_set("method", style=style, gender=gender)
+    jellyjob = _pick_caption_set("jellyjob", style=style, gender=gender)
+    recap = _pick_caption_set("recap", style=style, gender=gender)
     return style, method, jellyjob, recap
 
 
@@ -1958,9 +2005,10 @@ def generate_type1_carousel(
             f"Slides 2–4 need STYLE photos — drop files in: {PHOTOS_DIR / 'study_work'}"
         )
 
+    gender = avatar_gender(avatar_pack)
     if method_lines is None or jellyjob_lines is None or recap_lines is None:
         pair_style, paired_method, paired_jellyjob, paired_recap = _pick_paired_slides(
-            carousel_style
+            carousel_style, gender
         )
         if method_lines is None:
             method_lines = paired_method
@@ -1979,11 +2027,11 @@ def generate_type1_carousel(
     if caption_lines is None:
         hooks_by = _blocks_by_style("hooks")
         if hooks_by.get(pair_style):
-            caption_lines = _pick_caption_set("hooks", style=pair_style)
+            caption_lines = _pick_caption_set("hooks", style=pair_style, gender=gender)
         elif hooks_by.get("routine"):
-            caption_lines = _pick_caption_set("hooks", style="routine")
+            caption_lines = _pick_caption_set("hooks", style="routine", gender=gender)
         else:
-            caption_lines = _pick_caption_set("hooks")
+            caption_lines = _pick_caption_set("hooks", gender=gender)
 
     # One effect for the whole carousel (random by default)
     aug = resolve_augment(augment)
@@ -2004,7 +2052,7 @@ def generate_type1_carousel(
     path1 = dest / f"{prefix}slide_00.png"
     slide1.save(path1, quality=95)
     saved.append(path1)
-    _log(f"  Slide 1/4: {path1.name}  (HOOK + avatar [{avatar_pack}]: {avatar_path.name})")
+    _log(f"  Slide 1/4: {path1.name}  (HOOK + avatar [{avatar_pack}, {gender}]: {avatar_path.name})")
     _log(f"  Caption style pair: {pair_style}  |  augment: {aug}")
 
     # --- Slides 2–4: STYLE photos + text ---
