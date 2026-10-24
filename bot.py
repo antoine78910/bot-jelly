@@ -111,6 +111,13 @@ async def on_ready():
 
 
 @bot.event
+async def on_interaction(interaction: discord.Interaction):
+    if interaction.type is discord.InteractionType.component:
+        custom_id = (interaction.data or {}).get("custom_id", "")
+        print(f"[INTERACTION] {interaction.user} ({interaction.user.id}) clicked {custom_id}")
+
+
+@bot.event
 async def on_member_join(member: discord.Member):
     from activity_logs import log_member_join
 
