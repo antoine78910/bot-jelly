@@ -119,32 +119,53 @@ def _gallery_html(token: str, manifest: dict) -> str:
     for index, name in enumerate(manifest["files"], start=1):
         safe = html.escape(name)
         items.append(
-            f"<figure><img src='/c/{token}/{safe}' alt='Slide {index}' loading='lazy'>"
-            f"<a class='btn' href='/c/{token}/{safe}?dl=1' download='{safe}'>"
-            f"Télécharger la slide {index}</a></figure>"
+            f"<figure><span class='num'>{index}/{len(manifest['files'])}</span>"
+            f"<a href='/c/{token}/{safe}' target='_blank' rel='noopener'>"
+            f"<img src='/c/{token}/{safe}' alt='Slide {index}' loading='lazy'></a>"
+            f"<a class='btn small' href='/c/{token}/{safe}?dl=1' download='{safe}'>"
+            f"Slide {index} ⬇</a></figure>"
         )
     files_json = json.dumps(manifest["files"])
+    count = len(manifest["files"])
     return f"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>{title} — JobShift</title>
 <style>
+*{{box-sizing:border-box}}
 body{{margin:0;background:#0b0b0f;color:#f2f2f2;font-family:system-ui,-apple-system,sans-serif}}
-main{{max-width:560px;margin:0 auto;padding:20px 16px 48px}}
+main{{max-width:1500px;margin:0 auto;padding:20px 16px 40px}}
+header{{max-width:640px}}
 h1{{font-size:20px;margin:4px 0 6px}} p{{color:#b8b8c0;font-size:14px;line-height:1.45}}
 .btn{{display:block;text-align:center;background:#2b2b35;color:#fff;text-decoration:none;
-padding:12px;border-radius:10px;margin-top:8px;font-weight:600;border:0;width:100%;font-size:15px}}
-.primary{{background:#5865f2}} figure{{margin:22px 0}}
-img{{width:100%;height:auto;border-radius:12px;display:block}}
+padding:12px;border-radius:10px;margin-top:8px;font-weight:600;border:0;width:100%;font-size:15px;cursor:pointer}}
+.btn.small{{padding:9px;font-size:13px}}
+.primary{{background:#5865f2}}
+.actions{{display:flex;gap:8px;flex-wrap:wrap;max-width:640px}}
+.actions .btn{{flex:1 1 220px}}
+.row{{display:flex;gap:12px;margin:22px 0 8px;overflow-x:auto;scroll-snap-type:x mandatory;
+padding-bottom:10px;-webkit-overflow-scrolling:touch}}
+figure{{margin:0;position:relative;scroll-snap-align:start;
+flex:0 0 max(150px, calc((100% - 12px * ({count} - 1)) / {count}))}}
+img{{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:12px;display:block;background:#1a1a22}}
+.num{{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;
+font-weight:700;padding:3px 8px;border-radius:999px;pointer-events:none}}
+.hint{{font-size:12px;color:#8a8a96;margin:0}}
+@media (max-width:700px){{figure{{flex-basis:72vw}}}}
 #share{{display:none}}
 </style></head><body><main>
+<header>
 <h1>{title}</h1>
 <p>Images en qualité d’origine (PNG, sans compression Discord).<br>
 Sur iPhone : <b>Enregistrer toutes les photos</b>, ou appui long sur une image → <i>Ajouter à Photos</i>.</p>
+</header>
+<div class="actions">
 <button id="share" class="btn primary">Enregistrer toutes les photos</button>
 <a class="btn" href="/c/{token}/{ZIP_NAME}?dl=1" download>Tout télécharger (ZIP, ordinateur)</a>
-{''.join(items)}
+</div>
+<div class="row">{''.join(items)}</div>
+<p class="hint">{count} slides, dans l’ordre du post. Fais défiler horizontalement si elles ne tiennent pas toutes à l’écran.</p>
 <p>Lien valable {LINK_TTL_LABEL}.</p>
 </main>
 <script>
