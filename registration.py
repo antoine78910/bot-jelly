@@ -9,6 +9,13 @@ import discord
 from discord import app_commands
 
 from channel_utils import delete_bot_messages
+from countries import (
+    ELIGIBLE_COUNTRY_CODES,
+    country_label,
+    flag,
+    is_eligible,
+    other_country_buckets,
+)
 from embeds import EMBED_COLOR
 from notify_roles import notify_mentions
 from staff import is_staff as _is_staff
@@ -29,10 +36,13 @@ TITLE_PENDING = "Nouvelle inscription"
 TITLE_APPROVED = "Inscription — validée"
 TITLE_REJECTED = "Inscription — refusée"
 TITLE_REPLACED = "Inscription — remplacée"
+TITLE_INELIGIBLE = "Inscription — pays non éligible"
 FOOTER = "Inscription JobShift Posting"
 
 FIELD_DISCORD = "Pseudo Discord"
+FIELD_COUNTRY = "Pays"
 FIELD_INSTAGRAM = "Pseudo Instagram"
+FIELD_TIKTOK = "Pseudo TikTok"
 FIELD_PHONE = "Téléphone"
 FIELD_METHOD = "Méthode de paiement"
 FIELD_DETAILS = "Infos de paiement"
@@ -43,7 +53,10 @@ STATUS_LABELS = {
     "pending": "En attente de validation",
     "approved": "Validée",
     "rejected": "Refusée",
+    "ineligible": "Refus automatique : pays non éligible (bloqué)",
 }
+
+NOT_YET = "Pas encore (à configurer plus tard)"
 
 
 def _load_config() -> dict:
@@ -147,23 +160,41 @@ def welcome_embed() -> discord.Embed:
     return discord.Embed(
         title="🚀 Bienvenue dans la campagne JobShift Posting",
         description=(
-            "Clique sur le bouton ci-dessous pour t’inscrire.\n\n"
+            "Clique sur le bouton ci-dessous pour t’inscrire.\n"
+            "🌍 Campagne ouverte pour l’instant en **France**, **Belgique** et **Suisse**.\n\n"
             "**On te demandera :**\n"
-            "• Ton pseudo Instagram\n"
+            "• Ton pays\n"
+            "• Tes pseudos Instagram et TikTok (ou « pas encore », à configurer plus tard)\n"
             "• Ton numéro de téléphone\n"
-            "• Ta méthode de paiement (PayPal / Crypto / Virement)\n"
-            "• Tes infos de paiement\n\n"
-            "Une fois inscrit, tu es dans la campagne — "
-            "tu peux poster et commencer à être payé."
+            "• Ta méthode et tes infos de paiement (PayPal / Crypto / Virement)\n\n"
+            "Une fois ta demande acceptée, tu reçois le rôle **Creator** "
+            "et tu peux commencer à créer ton contenu."
         ),
         color=EMBED_COLOR,
     )
 
 
+def _country_text(code: str | None) -> str:
+    if not code:
+        return "—"
+    return f"{flag(code)} {country_label(code)} ({code})"
+
+
+def _country_code_from_text(text: str) -> str:
+    match = re.search(r"\(([A-Z]{2})\)", text or "")
+    return match.group(1) if match else ""
+
+
 def registration_embed(record: dict) -> discord.Embed:
     status = record.get("status") or "pending"
-    color = {"approved": APPROVED_COLOR, "rejected": REJECTED_COLOR}.get(status, EMBED_COLOR)
-    title = {"approved": TITLE_APPROVED, "rejected": TITLE_REJECTED}.get(status, TITLE_PENDING)
+    color = {"approved": APPROVED_COLOR, "rejected": REJECTED_COLOR, "ineligible": REJECTED_COLOR}.get(
+        status, EMBED_COLOR
+    )
+    title = {
+        "approved": TITLE_APPROVED,
+        "rejected": TITLE_REJECTED,
+        "ineligible": TITLE_INELIGIBLE,
+    }.get(status, TITLE_PENDING)
     username = record.get("discord_username") or ""
     who = f" · @{username}" if username else ""
     embed = discord.Embed(
@@ -172,7 +203,9 @@ def registration_embed(record: dict) -> discord.Embed:
         color=color,
     )
     embed.add_field(name=FIELD_DISCORD, value=_clip(f"@{username}" if username else "", 100), inline=False)
+    embed.add_field(name=FIELD_COUNTRY, value=_country_text(record.get("country")), inline=False)
     embed.add_field(name=FIELD_INSTAGRAM, value=_clip(record.get("instagram"), 100), inline=False)
+    embed.add_field(name=FIELD_TIKTOK, value=_clip(record.get("tiktok"), 100), inline=False)
     embed.add_field(name=FIELD_PHONE, value=_clip(record.get("phone"), 40), inline=False)
     embed.add_field(name=FIELD_METHOD, value=_clip(record.get("payout_method"), 100), inline=False)
     embed.add_field(name=FIELD_DETAILS, value=_clip(record.get("payout_details")), inline=False)
@@ -205,16 +238,20 @@ def _replaced_embed(record: dict) -> discord.Embed:
 
 def _lookup_embed(record: dict) -> discord.Embed:
     status = record.get("status") or "pending"
-    color = {"approved": APPROVED_COLOR, "rejected": REJECTED_COLOR}.get(status, EMBED_COLOR)
+    color = {"approved": APPROVED_COLOR, "rejected": REJECTED_COLOR, "ineligible": REJECTED_COLOR}.get(
+        status, EMBED_COLOR
+    )
     embed = discord.Embed(
         title=f"@{record.get('discord_username') or record['discord_id']}",
         description=(
             f"**Statut :** {STATUS_LABELS.get(status, STATUS_LABELS['pending'])}\n"
-            f"**Discord :** <@{record['discord_id']}> (`{record['discord_id']}`)"
+            f"**Discord :** <@{record['discord_id']}> (`{record['discord_id']}`)\n"
+            f"**Pays :** {_country_text(record.get('country'))}"
         ),
         color=color,
     )
     embed.add_field(name="Instagram", value=_clip(record.get("instagram"), 100), inline=True)
+    embed.add_field(name="TikTok", value=_clip(record.get("tiktok"), 100), inline=True)
     embed.add_field(name="Téléphone", value=_clip(record.get("phone"), 40), inline=True)
     embed.add_field(name="Méthode de paiement", value=_clip(record.get("payout_method"), 100), inline=False)
     embed.add_field(name="Infos de paiement", value=_clip(record.get("payout_details")), inline=False)
@@ -250,7 +287,9 @@ def _record_from_message(message: discord.Message) -> dict | None:
 
     status_text = f"{fields.get(FIELD_STATUS, '')} {title}"
     status = "pending"
-    if re.search(r"validée", status_text, re.I):
+    if re.search(r"non éligible", status_text, re.I):
+        status = "ineligible"
+    elif re.search(r"validée", status_text, re.I):
         status = "approved"
     elif re.search(r"refusée", status_text, re.I):
         status = "rejected"
@@ -261,7 +300,9 @@ def _record_from_message(message: discord.Message) -> dict | None:
     return {
         "discord_id": discord_id,
         "discord_username": username,
+        "country": _country_code_from_text(fields.get(FIELD_COUNTRY, "")),
         "instagram": fields.get(FIELD_INSTAGRAM) or "—",
+        "tiktok": fields.get(FIELD_TIKTOK) or "—",
         "phone": fields.get(FIELD_PHONE) or "—",
         "payout_method": fields.get(FIELD_METHOD) or "—",
         "payout_details": fields.get(FIELD_DETAILS) or "—",
@@ -572,43 +613,238 @@ async def review_registration(interaction: discord.Interaction, user_id: int, st
 # ---------------------------------------------------------------------------
 
 
-class RegistrationModal(discord.ui.Modal, title="Inscription JobShift Posting"):
-    instagram = discord.ui.TextInput(
-        label="Pseudo Instagram (compte posting)",
-        placeholder="@toncompte",
-        required=True,
-        max_length=100,
-    )
-    phone = discord.ui.TextInput(
-        label="Numéro de téléphone",
-        placeholder="+33 6 12 34 56 78",
-        required=True,
-        max_length=30,
-    )
-    payout_method = discord.ui.TextInput(
-        label="Méthode de paiement",
-        placeholder="PayPal / Crypto / Virement",
-        required=True,
-        max_length=100,
-    )
-    payout_details = discord.ui.TextInput(
-        label="Infos de paiement (email / wallet / IBAN)",
-        placeholder="ton@email.com / adresse wallet / IBAN…",
-        style=discord.TextStyle.paragraph,
-        required=True,
-        max_length=1000,
+INELIGIBLE_MESSAGE = (
+    "❌ **Tu n’es pas éligible pour l’instant.**\n"
+    "La campagne **JobShift Posting** est ouverte uniquement en **France**, **Belgique** et **Suisse** "
+    "pour le moment. Ta demande ne peut pas être refaite."
+)
+
+
+def _is_blocked(user_id: int) -> bool:
+    _load_store()
+    record = _registrations.get(str(user_id)) or {}
+    return record.get("status") == "ineligible"
+
+
+def _guess_payout_method(text: str) -> str:
+    lowered = text.lower()
+    if "paypal" in lowered:
+        return "PayPal"
+    if re.search(r"\b(crypto|usdt|usdc|btc|bitcoin|eth|ethereum|sol|solana|trc20|erc20|wallet)\b", lowered) or re.search(
+        r"\b0x[0-9a-f]{20,}", lowered
+    ):
+        return "Crypto"
+    if re.search(r"\b(iban|virement|rib|bic|swift|wise|revolut)\b", lowered) or re.search(
+        r"\b[a-z]{2}\d{2}(?:\s?[a-z0-9]{4}){3,}", lowered
+    ):
+        return "Virement"
+    if "@" in lowered:
+        return "PayPal (email)"
+    return "Voir infos de paiement"
+
+
+async def _log_registration(client: discord.Client, record: dict, previous: dict | None, *, review: bool) -> None:
+    """Post a registration (or automatic refusal) in the log channel and ping the owner."""
+    log_channel = client.get_channel(_log_channel_id())
+    if not isinstance(log_channel, discord.TextChannel):
+        print("[CREATOR] Registration log channel not accessible, nothing posted.")
+        return
+    if previous and previous.get("message_id") and previous.get("status") == "pending":
+        try:
+            old = await log_channel.fetch_message(int(previous["message_id"]))
+            await old.edit(embed=_replaced_embed(previous), view=None)
+        except discord.HTTPException:
+            pass
+    try:
+        kwargs = {"view": _review_view(record["discord_id"])} if review else {}
+        sent = await log_channel.send(
+            content=notify_mentions() or None,
+            embed=registration_embed(record),
+            **kwargs,
+        )
+        record["message_id"] = sent.id
+        _save_store()
+    except discord.HTTPException as exc:
+        print(f"[CREATOR] Registration log failed: {exc}")
+
+
+async def _refuse_ineligible(interaction: discord.Interaction, country: str) -> None:
+    await interaction.response.edit_message(content=INELIGIBLE_MESSAGE, view=None)
+    _load_store()
+    discord_id = str(interaction.user.id)
+    previous = _registrations.get(discord_id)
+    if (previous or {}).get("status") == "ineligible":
+        return
+    record = {
+        "discord_id": discord_id,
+        "discord_username": interaction.user.name,
+        "country": country,
+        "instagram": "—",
+        "tiktok": "—",
+        "phone": "—",
+        "payout_method": "—",
+        "payout_details": "—",
+        "status": "ineligible",
+        "applied_at": _now_iso(),
+        "validated_at": _now_iso(),
+        "validated_by": None,
+        "message_id": None,
+        "channel_id": _log_channel_id() or None,
+    }
+    _registrations[discord_id] = record
+    _save_store()
+    print(f"[CREATOR] {interaction.user} refused: country {country} not eligible")
+    await _log_registration(interaction.client, record, previous, review=False)
+
+
+class _OwnedView(discord.ui.View):
+    def __init__(self, user_id: int) -> None:
+        super().__init__(timeout=900)
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.user_id
+
+
+class CountryPickView(_OwnedView):
+    PROMPT = (
+        "🌍 **Dans quel pays habites-tu ?**\n"
+        "Choisis ton pays ci-dessous (les autres pays sont classés par ordre alphabétique)."
     )
 
+    def __init__(self, user_id: int) -> None:
+        super().__init__(user_id)
+        self.buckets = other_country_buckets()
+        options = [
+            discord.SelectOption(label=country_label(code), value=code, emoji=flag(code))
+            for code in ELIGIBLE_COUNTRY_CODES
+        ]
+        options += [
+            discord.SelectOption(label=f"Autre pays : {label}", value=f"bucket:{index}", emoji="🌍")
+            for index, (label, _codes) in enumerate(self.buckets)
+        ]
+        self.main = discord.ui.Select(placeholder="Choisis ton pays…", options=options, row=0)
+        self.main.callback = self._on_main
+        self.add_item(self.main)
+        self.detail: discord.ui.Select | None = None
+
+    async def _on_main(self, interaction: discord.Interaction) -> None:
+        value = self.main.values[0]
+        if not value.startswith("bucket:"):
+            if _is_blocked(interaction.user.id):
+                await interaction.response.edit_message(content=INELIGIBLE_MESSAGE, view=None)
+                return
+            await interaction.response.send_modal(RegistrationModal(value))
+            return
+        label, codes = self.buckets[int(value.split(":", 1)[1])]
+        if self.detail is not None:
+            self.remove_item(self.detail)
+        self.detail = discord.ui.Select(
+            placeholder=f"Choisis ton pays ({label})…",
+            options=[
+                discord.SelectOption(label=country_label(code), value=code, emoji=flag(code)) for code in codes
+            ],
+            row=1,
+        )
+        self.detail.callback = self._on_detail
+        self.add_item(self.detail)
+        await interaction.response.edit_message(content=self.PROMPT, view=self)
+
+    async def _on_detail(self, interaction: discord.Interaction) -> None:
+        code = self.detail.values[0] if self.detail else ""
+        if is_eligible(code):
+            await interaction.response.send_modal(RegistrationModal(code))
+            return
+        await interaction.response.edit_message(
+            content=(
+                f"Tu as indiqué : **{flag(code)} {country_label(code)}**.\n\n"
+                "⚠️ La campagne est ouverte uniquement en **France**, **Belgique** et **Suisse** pour l’instant. "
+                "Si tu confirmes, ta demande sera refusée et **tu ne pourras pas la refaire**."
+            ),
+            view=ConfirmCountryView(self.user_id, code),
+        )
+
+
+class ConfirmCountryView(_OwnedView):
+    def __init__(self, user_id: int, country: str) -> None:
+        super().__init__(user_id)
+        self.country = country
+
+    @discord.ui.button(label="Confirmer mon pays", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await _refuse_ineligible(interaction, self.country)
+
+    @discord.ui.button(label="Changer de pays", emoji="↩️", style=discord.ButtonStyle.secondary)
+    async def back(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.edit_message(
+            content=CountryPickView.PROMPT, view=CountryPickView(self.user_id)
+        )
+
+
+class RegistrationModal(discord.ui.Modal):
+    def __init__(self, country: str) -> None:
+        super().__init__(title="Inscription JobShift Posting", timeout=None)
+        self.country = country
+        self.instagram = discord.ui.TextInput(placeholder="@toncompte", required=False, max_length=100)
+        self.tiktok = discord.ui.TextInput(placeholder="@toncompte", required=False, max_length=100)
+        self.not_yet = discord.ui.CheckboxGroup(
+            required=False,
+            min_values=0,
+            max_values=2,
+            options=[
+                discord.components.CheckboxGroupOption(label="Pas encore de compte Instagram", value="instagram"),
+                discord.components.CheckboxGroupOption(label="Pas encore de compte TikTok", value="tiktok"),
+            ],
+        )
+        self.phone = discord.ui.TextInput(placeholder="+33 6 12 34 56 78", required=True, max_length=30)
+        self.payout = discord.ui.TextInput(
+            placeholder="PayPal : ton@email.com / Crypto : USDT TRC20 + adresse / Virement : IBAN…",
+            style=discord.TextStyle.paragraph,
+            required=True,
+            max_length=1000,
+        )
+        self.add_item(discord.ui.Label(text="Pseudo Instagram (compte posting)", component=self.instagram))
+        self.add_item(discord.ui.Label(text="Pseudo TikTok (compte posting)", component=self.tiktok))
+        self.add_item(
+            discord.ui.Label(
+                text="Pas encore de compte ?",
+                description="Coche si tu n’as pas encore le compte : tu pourras le configurer plus tard.",
+                component=self.not_yet,
+            )
+        )
+        self.add_item(discord.ui.Label(text="Numéro de téléphone", component=self.phone))
+        self.add_item(
+            discord.ui.Label(
+                text="Paiement : méthode + infos",
+                description="PayPal, Crypto ou Virement, avec ton email / wallet / IBAN.",
+                component=self.payout,
+            )
+        )
+
+    @staticmethod
+    def _account(value: str, not_yet: bool) -> str:
+        handle = (value or "").strip()
+        if not_yet or not handle:
+            return NOT_YET
+        return _clip(handle, 100)
+
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        # Role grant + staff notification can exceed Discord's 3 s reply window.
+        # Staff notification can exceed Discord's 3 s reply window.
         await interaction.response.defer(ephemeral=True, thinking=True)
+        if _is_blocked(interaction.user.id):
+            await interaction.followup.send(INELIGIBLE_MESSAGE, ephemeral=True)
+            return
+        not_yet = set(self.not_yet.values or [])
+        payout = self.payout.value or ""
         record = {
             "discord_id": str(interaction.user.id),
             "discord_username": interaction.user.name,
-            "instagram": _clip(self.instagram.value, 100),
+            "country": self.country,
+            "instagram": self._account(self.instagram.value, "instagram" in not_yet),
+            "tiktok": self._account(self.tiktok.value, "tiktok" in not_yet),
             "phone": _clip(self.phone.value, 40),
-            "payout_method": _clip(self.payout_method.value, 100),
-            "payout_details": _clip(self.payout_details.value),
+            "payout_method": _guess_payout_method(payout),
+            "payout_details": _clip(payout),
             "status": "pending",
             "applied_at": _now_iso(),
             "validated_at": None,
@@ -620,25 +856,7 @@ class RegistrationModal(discord.ui.Modal, title="Inscription JobShift Posting"):
         previous = _registrations.get(record["discord_id"])
         _registrations[record["discord_id"]] = record
         _save_store()
-
-        log_channel = interaction.client.get_channel(_log_channel_id())
-        if isinstance(log_channel, discord.TextChannel):
-            if previous and previous.get("message_id") and previous.get("status") == "pending":
-                try:
-                    old = await log_channel.fetch_message(int(previous["message_id"]))
-                    await old.edit(embed=_replaced_embed(previous), view=None)
-                except discord.HTTPException:
-                    pass
-            try:
-                sent = await log_channel.send(
-                    content=notify_mentions() or None,
-                    embed=registration_embed(record),
-                    view=_review_view(record["discord_id"]),
-                )
-                record["message_id"] = sent.id
-                _save_store()
-            except discord.HTTPException as exc:
-                print(f"[CREATOR] Registration log failed: {exc}")
+        await _log_registration(interaction.client, record, previous, review=True)
 
         description = (
             "Ta demande pour la campagne **JobShift Posting** est bien envoyée.\n"
@@ -663,7 +881,12 @@ class RegisterView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ) -> None:
-        await interaction.response.send_modal(RegistrationModal())
+        if _is_blocked(interaction.user.id):
+            await interaction.response.send_message(INELIGIBLE_MESSAGE, ephemeral=True)
+            return
+        await interaction.response.send_message(
+            CountryPickView.PROMPT, view=CountryPickView(interaction.user.id), ephemeral=True
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -681,7 +904,7 @@ def find_registrations(query: str) -> list[dict]:
     for record in _registrations.values():
         keys = [
             _handle(record.get(key))
-            for key in ("discord_id", "discord_username", "instagram")
+            for key in ("discord_id", "discord_username", "instagram", "tiktok")
         ]
         keys = [key for key in keys if key and key != "—"]
         if needle in keys:
@@ -695,7 +918,7 @@ def find_registrations(query: str) -> list[dict]:
     name="username",
     description="Retrouve une inscription créateur et les infos de paiement enregistrées.",
 )
-@app_commands.describe(nom="Pseudo Discord ou Instagram")
+@app_commands.describe(nom="Pseudo Discord, Instagram ou TikTok")
 @app_commands.default_permissions(administrator=True)
 @app_commands.guild_only()
 async def username_command(interaction: discord.Interaction, nom: str) -> None:
