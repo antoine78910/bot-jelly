@@ -95,18 +95,39 @@ def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
 
 
 async def _add_staff_to_thread(thread: discord.Thread) -> None:
+    """Private threads hide everything from people who were not added."""
     guild = thread.guild
     if guild is None:
         return
-    for role_id in _staff_role_ids():
+    from notify_roles import notify_user_ids
+    from staff import staff_role_id
+
+    user_ids: set[int] = set(notify_user_ids())
+    role_ids = set(_staff_role_ids())
+    configured_role = staff_role_id()
+    if configured_role:
+        role_ids.add(configured_role)
+    for role_id in role_ids:
         role = guild.get_role(role_id)
         if role is None:
             continue
-        for member in role.members:
+        user_ids.update(member.id for member in role.members if not member.bot)
+
+    me_id = guild.me.id if guild.me else None
+    for user_id in user_ids:
+        if user_id == me_id:
+            continue
+        member = guild.get_member(user_id)
+        if member is None:
             try:
-                await thread.add_user(member)
+                member = await guild.fetch_member(user_id)
             except discord.HTTPException:
-                pass
+                print(f"[CONTENT] Staff {user_id} is not in {guild.name}, not added to the thread.")
+                continue
+        try:
+            await thread.add_user(member)
+        except discord.HTTPException as exc:
+            print(f"[CONTENT] Could not add {member} to thread {thread.id}: {exc}")
 
 
 async def _ensure_thread_member(thread: discord.Thread, user: discord.abc.User) -> None:
@@ -186,6 +207,32 @@ async def get_or_create_clips_thread(
     await thread.add_user(member)
     await _add_staff_to_thread(thread)
     await thread.send(embed=thread_welcome_embed(member, mode))
+    return thread
+
+
+async def _note_in_thread(thread: discord.Thread, text: str) -> None:
+    try:
+        await thread.send(text[:2000])
+    except discord.HTTPException as exc:
+        print(f"[CONTENT] Could not write in thread {thread.id}: {exc}")
+
+
+async def _open_watch_thread(interaction: discord.Interaction, action: str) -> discord.Thread | None:
+    """Open the creator's private thread and keep staff in it so each step is visible."""
+    if not isinstance(interaction.channel, discord.TextChannel):
+        return None
+    if not isinstance(interaction.user, discord.Member):
+        return None
+    try:
+        thread = await get_or_create_clips_thread(
+            interaction.channel,
+            interaction.user,
+            mode="single",
+        )
+    except discord.HTTPException as exc:
+        print(f"[CONTENT] Watch thread failed for {interaction.user.id}: {exc}")
+        return None
+    await _note_in_thread(thread, f"{interaction.user.mention} — **{action}**.")
     return thread
 
 
@@ -465,6 +512,12 @@ async def _handle_clip_request(
         return
 
     count = max(1, min(5, count))
+    style_label = CAROUSEL_STYLE_LABELS.get(carousel_style or "", carousel_style or "template automatique")
+    quantity = "1 carrousel" if count == 1 else f"{count} carrousels"
+    await _note_in_thread(
+        thread,
+        f"{interaction.user.mention} lance **{style_label}** · {quantity}.",
+    )
     progress_message = _OriginalResponseProgress(interaction)
     await progress_message.edit(embed=progress_embed(1, count))
 
@@ -504,6 +557,13 @@ async def _handle_clip_request(
     except discord.HTTPException:
         pass
 
+
+CAROUSEL_STYLE_LABELS = {
+    "template1": "Template 1 — Google / JobShift",
+    "template2": "Template 2 — Édition rentrée",
+    "template3": "Template 3 — Entreprises",
+    "template4": "Template 4 — Notes",
+}
 
 # User who can pick among all avatar packs (others stay on femme_noir).
 AVATAR_PICKER_USER_IDS = {1015244275354706002}
@@ -571,22 +631,22 @@ class TemplateSelect(discord.ui.Select):
             max_values=1,
             options=[
                 discord.SelectOption(
-                    label="Template 1 — Google / JobShift",
+                    label=CAROUSEL_STYLE_LABELS["template1"],
                     value="template1",
                     description="Méthode classique, pastilles roses",
                 ),
                 discord.SelectOption(
-                    label="Template 2 — Édition rentrée",
+                    label=CAROUSEL_STYLE_LABELS["template2"],
                     value="template2",
                     description="POV RH, pastilles crème",
                 ),
                 discord.SelectOption(
-                    label="Template 3 — Entreprises",
+                    label=CAROUSEL_STYLE_LABELS["template3"],
                     value="template3",
                     description="3 à 5 boîtes, fond ville de nuit",
                 ),
                 discord.SelectOption(
-                    label="Template 4 — Notes",
+                    label=CAROUSEL_STYLE_LABELS["template4"],
                     value="template4",
                     description="Liste par secteur, fond noir",
                 ),
@@ -699,9 +759,9 @@ class ContentGeneratorView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ) -> None:
-        if await _creator_gate(interaction):
-            return
-        await _prompt_or_generate(interaction, mode="single", count=1)
+        if not await _creator_gate(interaction):
+            await _prompt_or_generate(interaction, mode="single", count=1)
+        await _watch_after_click(interaction, "Générer du contenu")
 
     @discord.ui.button(
         label="Générer un lot",
@@ -714,9 +774,9 @@ class ContentGeneratorView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ) -> None:
-        if await _creator_gate(interaction):
-            return
-        await interaction.response.send_modal(BatchGenerateModal())
+        if not await _creator_gate(interaction):
+            await interaction.response.send_modal(BatchGenerateModal())
+        await _watch_after_click(interaction, "Générer un lot")
 
 
 async def _creator_gate(interaction: discord.Interaction) -> bool:
@@ -734,6 +794,17 @@ async def _creator_gate(interaction: discord.Interaction) -> bool:
     if not persona.is_configured():
         return False
     return await persona.open_persona_setup(interaction)
+
+
+async def _watch_after_click(interaction: discord.Interaction, action: str) -> None:
+    """The click is already answered; open the thread without eating Discord's 3s window."""
+    import persona
+
+    if _can_pick_avatar_pack(interaction.user.id):
+        return
+    if not persona.can_create_persona(interaction.user):
+        return
+    await _open_watch_thread(interaction, action)
 
 
 def content_generator_panel_fingerprint() -> str:

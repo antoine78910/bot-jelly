@@ -48,6 +48,7 @@ FIELD_METHOD = "Méthode de paiement"
 FIELD_DETAILS = "Infos de paiement"
 FIELD_STATUS = "Statut"
 FIELD_VALIDATED_BY = "Validé par"
+FIELD_NOTICE = "Notification"
 
 STATUS_LABELS = {
     "pending": "En attente de validation",
@@ -217,6 +218,9 @@ def registration_embed(record: dict) -> discord.Embed:
             value=_clip(f"@{validator.get('username') or 'staff'} (`{validator['id']}`)", 200),
             inline=False,
         )
+    notice = _notice_text(record)
+    if notice:
+        embed.add_field(name=FIELD_NOTICE, value=notice, inline=False)
     embed.set_footer(text=FOOTER)
     applied = record.get("applied_at")
     try:
@@ -260,6 +264,7 @@ def _lookup_embed(record: dict) -> discord.Embed:
         f"Inscrit le {record['applied_at']}" if record.get("applied_at") else "",
         f"Mis à jour le {record['validated_at']}" if record.get("validated_at") else "",
         f"Par @{validator['username']}" if validator.get("username") else "",
+        _notice_text(record) or "",
     ]
     embed.add_field(name="Suivi", value=_clip("\n".join(line for line in review if line), 300), inline=False)
     embed.set_footer(text="Enregistré pour les futurs paiements")
@@ -297,7 +302,9 @@ def _record_from_message(message: discord.Message) -> dict | None:
     validator = fields.get(FIELD_VALIDATED_BY, "")
     validator_id = (re.search(r"`(\d+)`", validator) or [None, ""])[1]
     validator_name = (re.search(r"@(\S+)", validator) or [None, ""])[1]
-    return {
+    notice = fields.get(FIELD_NOTICE, "")
+    dm_sent = True if notice.startswith("DM envoyé") else False if notice.startswith("DM non envoyé") else None
+    record = {
         "discord_id": discord_id,
         "discord_username": username,
         "country": _country_code_from_text(fields.get(FIELD_COUNTRY, "")),
@@ -313,6 +320,24 @@ def _record_from_message(message: discord.Message) -> dict | None:
         "message_id": message.id,
         "channel_id": message.channel.id,
     }
+    if dm_sent is not None:
+        record["dm_sent"] = dm_sent
+    return record
+
+
+def _notice_text(record: dict) -> str | None:
+    sent = record.get("dm_sent")
+    if sent is None:
+        return None
+    if record.get("status") == "approved":
+        if sent:
+            return "DM envoyé — elle a été prévenue qu’elle est validée créateur."
+        return "DM non envoyé — ses messages privés sont fermés, elle n’a pas été prévenue."
+    if record.get("status") == "rejected":
+        if sent:
+            return "DM envoyé — elle a été prévenue du refus."
+        return "DM non envoyé — ses messages privés sont fermés."
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -595,16 +620,29 @@ async def review_registration(interaction: discord.Interaction, user_id: int, st
     except discord.HTTPException:
         pass
 
-    no_dm = "" if sent else " Impossible de lui envoyer un DM."
+    record["dm_sent"] = sent
+    _registrations[discord_id] = record
+    _save_store()
+    if interaction.message:
+        try:
+            await interaction.message.edit(embed=registration_embed(record), view=None)
+        except discord.HTTPException:
+            pass
+
     if status == "approved":
         lookup = record["discord_username"] or discord_id
         role_note = "" if role_granted else " ⚠️ Rôle Creator non attribué (permission Manage Roles du bot ?)."
+        if sent:
+            dm_note = " DM envoyé : elle sait qu’elle est validée créateur."
+        else:
+            dm_note = " ⚠️ DM non envoyé (messages privés fermés) : elle n’a pas été prévenue."
         msg = (
             f"Validée et enregistrée pour les paiements. Retrouve-la avec `/username nom:{lookup}`."
-            f"{role_note}{no_dm}"
+            f"{role_note}{dm_note}"
         )
     else:
-        msg = f"Refusée.{no_dm}"
+        dm_note = " DM envoyé." if sent else " ⚠️ DM non envoyé (messages privés fermés)."
+        msg = f"Refusée.{dm_note}"
     await interaction.followup.send(msg, ephemeral=True)
 
 

@@ -313,6 +313,13 @@ class PersonaRegenSelect(
             await interaction.followup.send(f"❌ {_fr_error(exc)}", ephemeral=True)
             return
         _start_watcher(self.user_id, _thread_id(interaction), regenerated=True)
+        if isinstance(interaction.channel, discord.Thread):
+            try:
+                await interaction.channel.send(
+                    f"🔁 {interaction.user.mention} régénère l’image **#{slot}**."
+                )
+            except discord.HTTPException as exc:
+                print(f"[PERSONA] Could not log regen in thread: {exc}")
         await interaction.followup.send(
             f"🔁 Image **#{slot}** en cours de régénération (≈1 min). Elle arrivera ici.",
             ephemeral=True,
@@ -396,7 +403,13 @@ class _ConfirmValidateView(discord.ui.View):
         if pack:
             _pack_cache[self.user_id] = (pack, time.time() + 10 * 365 * 86400)
         await interaction.edit_original_response(content="✅ Persona validé.")
-        await _Destination(_here(interaction), self.user_id).send(embed=_validated_embed(run))
+        channel = _here(interaction)
+        if isinstance(channel, discord.Thread):
+            try:
+                await channel.send(f"✅ {interaction.user.mention} a validé son persona.")
+            except discord.HTTPException as exc:
+                print(f"[PERSONA] Could not log validation in thread: {exc}")
+        await _Destination(channel, self.user_id).send(embed=_validated_embed(run))
 
 
 def _here(interaction: discord.Interaction) -> discord.abc.Messageable | None:
@@ -825,7 +838,10 @@ async def _start_persona_flow(
 
     _status_cache[user_id] = "generating"
     _shown.pop(user_id, None)
-    progress = await dest.send(f"{interaction.user.mention}", embed=_progress_embed(run))
+    progress = await dest.send(
+        f"{interaction.user.mention} envoie sa photo · persona **{gender_label}**.",
+        embed=_progress_embed(run),
+    )
     progress_ref = (progress.channel.id, progress.id) if progress is not None else None
     try:
         ephemeral = await interaction.followup.send(
