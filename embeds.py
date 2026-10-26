@@ -219,9 +219,7 @@ MESSAGE_TEMPLATES: dict[str, dict] = {
             "**Exemple :**\n"
             "Tu invites Sarah → Sarah crée 3 vidéos JobShift → sa première vidéo fait "
             "60K vues, la deuxième 30K et la troisième 10K → **100K vues au total** → "
-            "tu gagnes **100 $**.\n\n"
-            "🔗 **Récupère ton lien de parrainage et suis tes gains ici :** "
-            "https://creator.tryjobshift.com/creator/affiliate"
+            "tu gagnes **100 $**."
         ),
         "color": EMBED_COLOR,
     },
