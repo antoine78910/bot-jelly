@@ -63,7 +63,7 @@ def payouts_description() -> str:
 
     return (
         "1 $ / 1k vues\n"
-        "Minimum pour un paiement : 100k vues\n"
+        "Minimum pour un paiement : 10k vues au total sur tes vidéos\n"
         "Minimum d’audience française : 20 %\n\n"
         "Les paiements se font par virement bancaire, PayPal ou crypto.\n"
         "Les paiements sont effectués toutes les deux semaines.\n\n"

@@ -7,7 +7,7 @@
 
 - JobShift paie des créateurs pour poster du contenu (carrousels et vidéos Instagram / TikTok) qui renvoie vers https://tryjobshift.com.
 - Rémunération : 1 $ pour 1 000 vues.
-- Minimum pour demander un paiement : 100k vues. Minimum d'audience française : 20 %.
+- Minimum pour demander un paiement : 10k vues au total sur tes vidéos. Minimum d'audience française : 20 %.
 - Paiements toutes les deux semaines, par virement bancaire, PayPal ou crypto.
 
 ## Les étapes pour commencer
@@ -32,7 +32,7 @@ Première ligne : « Commente JOB pour essayer » ou « Commente CV pour la mét
 Les sons sont dans le salon music : ajoute-les en favoris pour les retrouver au moment de poster.
 
 ### Comment demander mon paiement ?
-Dans le salon payout-submission, bouton « Demander un paiement ». Il faut au moins 100k vues et 20 % d'audience française. Un problème de paiement (retard, montant, paiement manquant) → escalade vers l'équipe.
+Dans le salon payout-submission, bouton « Demander un paiement ». Il faut au moins 10k vues au total sur tes vidéos et 20 % d'audience française. Un problème de paiement (retard, montant, paiement manquant) → escalade vers l'équipe.
 
 ### Parrainage
 Tu gagnes 100 $ quand un créateur que tu as invité atteint 100k vues au total. Lien et suivi : https://creator.tryjobshift.com/creator/affiliate
