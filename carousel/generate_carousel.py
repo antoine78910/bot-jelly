@@ -24,13 +24,16 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 try:
-    from .jobshift_offers import load_live_alternance_companies
+    from .jobshift_offers import attach_company_logos, load_live_alternance_companies
 except ImportError:  # python generate_carousel.py, or module not deployed yet
     try:
-        from jobshift_offers import load_live_alternance_companies
+        from jobshift_offers import attach_company_logos, load_live_alternance_companies
     except ImportError:
         def load_live_alternance_companies(count: int) -> list:
             return []
+
+        def attach_company_logos(companies: list) -> None:
+            return None
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -1591,19 +1594,21 @@ def _is_dark_city_frame(path: Path) -> bool:
     return min(width, height) >= 640
 
 
-def _company_logo(raw: bytes | None) -> Image.Image | None:
+def _company_logo(raw: bytes | None, size: int = 112) -> Image.Image | None:
     if not raw:
         return None
     try:
         img = Image.open(BytesIO(raw)).convert("RGBA")
     except (OSError, ValueError):
         return None
-    size = 112
-    fitted = ImageOps.fit(img, (size, size), Image.Resampling.LANCZOS)
+    inset = max(8, size // 8)
+    fitted = ImageOps.contain(img, (size - inset * 2, size - inset * 2), Image.Resampling.LANCZOS)
+    plate = Image.new("RGBA", (size, size), (255, 255, 255, 255))
+    plate.paste(fitted, ((size - fitted.width) // 2, (size - fitted.height) // 2), fitted)
     mask = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=24, fill=255)
-    fitted.putalpha(mask)
-    return fitted
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=max(10, size // 5), fill=255)
+    plate.putalpha(mask)
+    return plate
 
 
 def _render_template3_company(bg: Image.Image, company: dict) -> Image.Image:
@@ -1735,6 +1740,7 @@ def _generate_template3(
     companies = load_live_alternance_companies(count)
     if len(companies) < 3:
         companies = fallback
+    attach_company_logos(companies)
     aug = resolve_augment(augment)
     seed_base = random.randint(0, 1_000_000)
     prefix = "" if output_dir is not None else f"carousel_{set_index:02d}_"
@@ -1844,14 +1850,16 @@ def _sample_template4_sectors(data: dict) -> list[dict]:
         sectors = sectors[:-1]
     sampled: list[dict] = []
     for sector in sectors:
-        companies = [c for c in (sector.get("companies") or []) if c.get("name")]
+        companies = [dict(c) for c in (sector.get("companies") or []) if c.get("name")]
         if not companies:
             continue
         random.shuffle(companies)
         take = random.randint(min(low, len(companies)), min(max(low, high), len(companies)))
-        lines = [_company_line(company) for company in companies[:take]]
-        sampled.append({"title": str(sector.get("title") or "").strip(), "lines": lines})
-    return [block for block in sampled if block["title"] and block["lines"]]
+        sampled.append({
+            "title": str(sector.get("title") or "").strip(),
+            "companies": companies[:take],
+        })
+    return [block for block in sampled if block["title"] and block["companies"]]
 
 
 def _notes_text_size(text: str, font) -> tuple[int, int]:
@@ -1876,25 +1884,43 @@ def _wrap_plain(text: str, font, max_width: int) -> list[str]:
     return lines
 
 
+_TEMPLATE4_LOGO = 58
+_TEMPLATE4_ROW_GAP = 16
+
+
+def _template4_rows(companies: list[dict], body_font, max_width: int) -> list[dict]:
+    body_h = _notes_text_size("Ag", body_font)[1]
+    rows = []
+    for company in companies:
+        logo = _company_logo(company.get("logo_png"), _TEMPLATE4_LOGO)
+        text_width = max_width - (_TEMPLATE4_LOGO + 16 if logo is not None else 0)
+        lines = _wrap_plain(_company_line(company), body_font, text_width)
+        text_h = len(lines) * body_h + max(0, len(lines) - 1) * 4
+        mark_h = _TEMPLATE4_LOGO if logo is not None else 0
+        rows.append({
+            "lines": lines,
+            "logo": logo,
+            "text_h": text_h,
+            "height": max(mark_h, text_h) + _TEMPLATE4_ROW_GAP,
+        })
+    return rows
+
+
 def _template4_slide_blocks(sectors: list[dict], title_font, body_font, max_width: int) -> list[dict]:
-    blocks = []
-    for sector in sectors:
-        bullets: list[str] = []
-        for line in sector["lines"]:
-            bullets.extend(_wrap_plain(f"•  {line}", body_font, max_width))
-        blocks.append({"title": sector["title"], "bullets": bullets})
-    return blocks
+    return [
+        {"title": sector["title"], "rows": _template4_rows(sector["companies"], body_font, max_width)}
+        for sector in sectors
+    ]
 
 
 def _template4_slide_height(blocks: list[dict], title_font, body_font) -> int:
     title_h = _notes_text_size("Ag", title_font)[1]
-    body_h = _notes_text_size("Ag", body_font)[1]
     total = 0
     for index, block in enumerate(blocks):
         if index:
             total += 44
         total += title_h + 16
-        total += len(block["bullets"]) * (body_h + 14)
+        total += sum(row["height"] for row in block["rows"])
     return total
 
 
@@ -1916,9 +1942,9 @@ def _pack_template4_slides(sectors: list[dict]) -> list[list[dict]]:
             title_font,
             body_font,
         ) > budget:
-            longest = max(bucket, key=lambda item: len(item["lines"]))
-            if len(longest["lines"]) > 2:
-                longest["lines"] = longest["lines"][:-1]
+            longest = max(bucket, key=lambda item: len(item["companies"]))
+            if len(longest["companies"]) > 2:
+                longest["companies"] = longest["companies"][:-1]
             elif len(bucket) > 1:
                 bucket.remove(longest)
             else:
@@ -1945,33 +1971,41 @@ def _render_template4_hook(bg: Image.Image, lines: list[str]) -> Image.Image:
 
 
 def _render_template4_notes(sectors: list[dict]) -> Image.Image:
-    img = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0))
+    img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 255))
     draw = ImageDraw.Draw(img)
     title_font = get_tiktok_font(46)
     body_font = get_tiktok_font(36)
     margin_x = 78
     max_width = CANVAS_W - margin_x - 64
     blocks = _template4_slide_blocks(sectors, title_font, body_font, max_width)
-    y = 200
+    y = 180
     title_h = _notes_text_size("Ag", title_font)[1]
     body_h = _notes_text_size("Ag", body_font)[1]
     for index, block in enumerate(blocks):
         if index:
-            y += 44
+            y += 36
         title = block["title"]
         title_w, _ = _notes_text_size(title, title_font)
-        draw.text((margin_x, y), title, font=title_font, fill=(255, 255, 255))
+        draw.text((margin_x, y), title, font=title_font, fill=(255, 255, 255, 255))
         underline_y = y + title_h + 6
         draw.line(
             [(margin_x, underline_y), (margin_x + title_w, underline_y)],
-            fill=(255, 255, 255),
+            fill=(255, 255, 255, 255),
             width=2,
         )
-        y = underline_y + 16
-        for bullet in block["bullets"]:
-            draw.text((margin_x, y), bullet, font=body_font, fill=(255, 255, 255))
-            y += body_h + 14
-    return img
+        y = underline_y + 18
+        for row in block["rows"]:
+            text_x = margin_x
+            logo = row["logo"]
+            if logo is not None:
+                img.paste(logo, (margin_x, y), logo)
+                text_x = margin_x + _TEMPLATE4_LOGO + 16
+            text_y = y + max(0, (_TEMPLATE4_LOGO - row["text_h"]) // 2) if logo is not None else y
+            for line in row["lines"]:
+                draw.text((text_x, text_y), line, font=body_font, fill=(255, 255, 255, 255))
+                text_y += body_h + 4
+            y += row["height"]
+    return img.convert("RGB")
 
 
 def _generate_template4(
@@ -2001,6 +2035,7 @@ def _generate_template4(
         "(2026)",
     ]
     sectors = _sample_template4_sectors(data)
+    attach_company_logos([company for sector in sectors for company in sector["companies"]])
     slides_sectors = _pack_template4_slides(sectors)
     aug = resolve_augment("none" if augment in (None, "random", "rand", "auto", "") else augment)
     if aug in ("grade", "grain", "prop", "ai"):

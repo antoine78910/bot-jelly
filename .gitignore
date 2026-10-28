@@ -3,6 +3,7 @@ publish_state.json
 assets/clips/output/
 carousel/output/
 carousel/delivered/
+carousel/assets/logo_cache/
 !assets/clips/README.md
 /data/
 __pycache__/
