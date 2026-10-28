@@ -18,9 +18,19 @@ import random
 import re
 import urllib.request
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+
+try:
+    from .jobshift_offers import load_live_alternance_companies
+except ImportError:  # python generate_carousel.py, or module not deployed yet
+    try:
+        from jobshift_offers import load_live_alternance_companies
+    except ImportError:
+        def load_live_alternance_companies(count: int) -> list:
+            return []
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -728,6 +738,64 @@ def run_ab_test(
     return saved
 
 
+# Packs that get a fresh color grade on every use, so the same file never
+# exports twice with the same pixels. Same idea as the EE bot: white balance,
+# saturation, contrast, brightness, a small hue shift, and faint grain.
+_COLORIMETRY_PACKS = frozenset({"dark_cities", "study_work"})
+_COLOR_LOOKS = ("dark", "warm", "cool", "soft", "punchy")
+
+
+def _colorimetry_look(pack: str, rng: random.Random) -> str:
+    if pack == "dark_cities":
+        return rng.choices(_COLOR_LOOKS, weights=(4, 2, 2, 1, 2), k=1)[0]
+    return rng.choice(_COLOR_LOOKS)
+
+
+def _apply_unique_colorimetry(img: Image.Image, rng: random.Random, pack: str) -> Image.Image:
+    """One photographic grade per export. 'dark' or another look, then a unique jitter."""
+    look = _colorimetry_look(pack, rng)
+    if look == "dark":
+        # Night cities are already dark — only crush them a little. Daytime study shots go darker.
+        if pack == "dark_cities":
+            color, contrast, brightness = 0.90, 1.12, 0.90
+        else:
+            color, contrast, brightness = 0.84, 1.14, 0.78
+        warm = rng.uniform(-0.07, -0.02)
+    elif look == "warm":
+        color, contrast, brightness = 1.08, 1.04, 1.02
+        warm = rng.uniform(0.04, 0.10)
+    elif look == "cool":
+        color, contrast, brightness = 0.96, 1.06, 0.98
+        warm = rng.uniform(-0.10, -0.04)
+    elif look == "soft":
+        color, contrast, brightness = 0.92, 0.90, 1.05
+        warm = rng.uniform(-0.02, 0.03)
+    else:
+        color, contrast, brightness = 1.12, 1.12, 0.99
+        warm = rng.uniform(-0.03, 0.04)
+
+    color *= rng.uniform(0.97, 1.04)
+    contrast *= rng.uniform(0.97, 1.04)
+    brightness *= rng.uniform(0.97, 1.03)
+    out = ImageEnhance.Color(img.convert("RGB")).enhance(color)
+    out = ImageEnhance.Contrast(out).enhance(contrast)
+    out = ImageEnhance.Brightness(out).enhance(brightness)
+
+    red, green, blue = out.split()
+    red = red.point(lambda value, shift=warm: max(0, min(255, int(value * (1 + shift)))))
+    blue = blue.point(lambda value, shift=warm: max(0, min(255, int(value * (1 - shift)))))
+    out = Image.merge("RGB", (red, green, blue))
+
+    hue_shift = rng.randint(-6, 6)
+    hue, sat, val = out.convert("HSV").split()
+    hue = hue.point(lambda value, shift=hue_shift: (value + shift) % 256)
+    out = Image.merge("HSV", (hue, sat, val)).convert("RGB")
+
+    width, height = out.size
+    grain = Image.effect_noise((width, height), rng.uniform(1.1, 2.2)).convert("RGB")
+    return ImageChops.add(out, grain, scale=1.0, offset=-128)
+
+
 def _load_cover_augmented(
     path: Path,
     w: int,
@@ -736,7 +804,12 @@ def _load_cover_augmented(
     seed: int | None = None,
 ) -> Image.Image:
     img = _load_and_cover(path, w, h)
-    return apply_augment(img, augment, seed=seed)
+    img = apply_augment(img, augment, seed=seed)
+    pack = path.parent.name
+    if pack in _COLORIMETRY_PACKS:
+        grade_seed = (seed if seed is not None else random.randint(0, 10_000_000)) + 17
+        img = _apply_unique_colorimetry(img, random.Random(grade_seed), pack)
+    return img
 
 
 def _forced_segments(text: str) -> list[tuple[str, bool]]:
@@ -1508,6 +1581,31 @@ def _wrap_benefit(text: str, font, emoji_size: int, max_width: int) -> list[str]
     return [wrapped[0], *cont]
 
 
+def _is_dark_city_frame(path: Path) -> bool:
+    """Skip tiny downloads that cannot fill a 9:16 slide."""
+    try:
+        with Image.open(path) as img:
+            width, height = img.size
+    except OSError:
+        return False
+    return min(width, height) >= 640
+
+
+def _company_logo(raw: bytes | None) -> Image.Image | None:
+    if not raw:
+        return None
+    try:
+        img = Image.open(BytesIO(raw)).convert("RGBA")
+    except (OSError, ValueError):
+        return None
+    size = 112
+    fitted = ImageOps.fit(img, (size, size), Image.Resampling.LANCZOS)
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=24, fill=255)
+    fitted.putalpha(mask)
+    return fitted
+
+
 def _render_template3_company(bg: Image.Image, company: dict) -> Image.Image:
     name = _vary(company.get("name", ""))
     role = _vary(company.get("role", ""))
@@ -1515,22 +1613,32 @@ def _render_template3_company(bg: Image.Image, company: dict) -> Image.Image:
     overlay = Image.new("RGBA", bg.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    name_font, name_size = _fit_font(name, 880, 72, 48)
+    logo = _company_logo(company.get("logo_png"))
+    logo_size = 112
+    logo_gap = 28
+    name_max = 760 if logo is None else 760 - logo_size - logo_gap
+    name_font, name_size = _fit_font(name, name_max, 64, 40)
     name_w, name_h = _line_size(name, name_font, name_size)
-    pad_x, pad_y = 56, 32
-    card_w = max(name_w + pad_x * 2, 620)
-    card_h = name_h + pad_y * 2
+    pad_x, pad_y = 36, 28
+    content_w = name_w + (logo_size + logo_gap if logo is not None else 0)
+    card_w = max(content_w + pad_x * 2, 620)
+    card_h = max(name_h, logo_size if logo is not None else 0) + pad_y * 2
     card_x = (CANVAS_W - card_w) // 2
     card_y = int(CANVAS_H * 0.16)
     draw.rounded_rectangle(
         [card_x, card_y, card_x + card_w, card_y + card_h],
-        radius=16,
+        radius=22,
         fill=(255, 255, 255, 255),
     )
+    text_x = card_x + (card_w - content_w) // 2
+    if logo is not None:
+        logo_y = card_y + (card_h - logo_size) // 2
+        overlay.paste(logo, (text_x, logo_y), logo)
+        text_x += logo_size + logo_gap
     _draw_mixed_text(
         overlay,
         draw,
-        (card_x + (card_w - name_w) // 2, card_y + pad_y),
+        (text_x, card_y + (card_h - name_h) // 2),
         name,
         name_font,
         name_size,
@@ -1538,11 +1646,12 @@ def _render_template3_company(bg: Image.Image, company: dict) -> Image.Image:
     )
 
     y = card_y + card_h + 36
-    max_w = CANVAS_W - 100
-    role_font, role_size = _fit_font(role, max_w, 46, 34)
+    max_w = CANVAS_W - 120
     if role:
+        role_font = get_tiktok_font(42)
+        role_lines = _wrap_lines(role, role_font, 42, max_w)[:3]
         y = _draw_centered_block(
-            overlay, draw, [role], role_font, role_size, y,
+            overlay, draw, role_lines, role_font, 42, y,
             (255, 255, 255, 255), stroke=True, line_gap=6,
         )
         y += 16
@@ -1621,8 +1730,11 @@ def _generate_template3(
     data = _load_template3()
     if not data:
         raise FileNotFoundError(f"Template 3 introuvable : {TEMPLATE3_FILE}")
-    photos = _collect_images(PHOTOS_DIR / DARK_CITIES_PACK)
-    count, companies = _pick_template3_companies(data)
+    photos = [path for path in _collect_images(PHOTOS_DIR / DARK_CITIES_PACK) if _is_dark_city_frame(path)]
+    count, fallback = _pick_template3_companies(data)
+    companies = load_live_alternance_companies(count)
+    if len(companies) < 3:
+        companies = fallback
     aug = resolve_augment(augment)
     seed_base = random.randint(0, 1_000_000)
     prefix = "" if output_dir is not None else f"carousel_{set_index:02d}_"
@@ -1635,7 +1747,7 @@ def _generate_template3(
             return Image.new("RGB", (CANVAS_W, CANVAS_H), (8, 10, 18))
         path = pool[index % len(pool)]
         img = _load_cover_augmented(path, CANVAS_W, CANVAS_H, aug, seed_base + index)
-        return ImageEnhance.Brightness(img).enhance(0.9)
+        return img
 
     def _log(message: str) -> None:
         if not quiet:
