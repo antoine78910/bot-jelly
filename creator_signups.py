@@ -242,8 +242,30 @@ async def log_creator_signup(
     )
 
 
-def verify_webhook_secret(request_headers: dict[str, str]) -> bool:
-    secret = os.getenv("CREATOR_SIGNUP_WEBHOOK_SECRET", "").strip()
+# Video and inactive routes prefer their own secret, then the signup secret.
+CREATOR_VIDEO_WEBHOOK_ENVS = (
+    "CREATOR_VIDEO_WEBHOOK_SECRET",
+    "CREATOR_SIGNUP_WEBHOOK_SECRET",
+)
+
+
+def verify_webhook_secret(
+    request_headers: dict[str, str],
+    *,
+    env_names: tuple[str, ...] = ("CREATOR_SIGNUP_WEBHOOK_SECRET",),
+) -> bool:
+    """True when the shared secret matches, or when no secret is configured.
+
+    `env_names` is checked in order. The first non-empty value wins, so a
+    missing `CREATOR_VIDEO_WEBHOOK_SECRET` can fall back to the signup secret.
+    """
+    secret = ""
+    for name in env_names:
+        candidate = os.getenv(name, "").strip()
+        if candidate:
+            secret = candidate
+            break
+
     if not secret:
         return True
 

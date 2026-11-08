@@ -315,6 +315,35 @@ async def test_creator_signup(ctx: commands.Context):
         pass
 
 
+@bot.command(name="testcreatorvideo")
+@commands.has_permissions(administrator=True)
+async def test_creator_video(ctx: commands.Context):
+    """Post a sample creator video embed to verify channel permissions."""
+    from creator_activity import (
+        ChannelUnavailable,
+        build_sample_creator_video,
+        post_creator_video,
+    )
+
+    sample = build_sample_creator_video()
+    try:
+        message = await post_creator_video(bot, sample)
+    except ChannelUnavailable as exc:
+        print(f"Test creator video failed: {exc}")
+        await ctx.send(
+            "Notification non envoyée. Vérifie `creator_video_channel` dans "
+            "`channel_config.json` (ou CREATOR_VIDEO_CHANNEL_ID) et l'accès du bot au salon.",
+            delete_after=12,
+        )
+        return
+
+    await ctx.send(f"Notification de test envoyée : {message.jump_url}", delete_after=12)
+    try:
+        await ctx.message.delete()
+    except discord.HTTPException:
+        pass
+
+
 @bot.command(name="postcontent")
 @commands.has_permissions(administrator=True)
 async def post_content(ctx: commands.Context):
