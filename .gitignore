@@ -12,6 +12,7 @@ __pycache__/
 venv/
 samples/
 scripts/whop_broadcast_state.json
+creator-invite-backfill.json
 scripts/whop_members_export.csv
 scripts/whop_members_export.json
 scripts/whop_emails_all.csv
