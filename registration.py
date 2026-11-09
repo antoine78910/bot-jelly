@@ -16,6 +16,12 @@ from countries import (
     is_eligible,
     other_country_buckets,
 )
+from creator_invite import (
+    CreatorInviteError,
+    invite_failure_message,
+    invite_paragraph,
+    request_creator_invite,
+)
 from embeds import EMBED_COLOR
 from notify_roles import notify_mentions
 from staff import is_staff as _is_staff
@@ -58,6 +64,9 @@ STATUS_LABELS = {
 }
 
 NOT_YET = "Pas encore (à configurer plus tard)"
+INVITE_SENT_MARKER = "Lien Creator envoyé."
+INVITE_MISSING_MARKER = "Lien Creator non envoyé."
+INVITE_SENT_LOG_RE = re.compile(r"Lien Creator envoyé à <@!?(\d+)>")
 
 
 def _load_config() -> dict:
@@ -322,7 +331,31 @@ def _record_from_message(message: discord.Message) -> dict | None:
     }
     if dm_sent is not None:
         record["dm_sent"] = dm_sent
+    if INVITE_SENT_MARKER in notice:
+        record["creator_invite_sent"] = True
+    elif INVITE_MISSING_MARKER in notice:
+        record["creator_invite_sent"] = False
     return record
+
+
+def invite_sent_discord_id(content: str) -> str | None:
+    """Discord id from a fallback log line posted when the embed could not be edited."""
+    match = INVITE_SENT_LOG_RE.search(content or "")
+    return match.group(1) if match else None
+
+
+def merge_log_record(parsed: dict) -> dict:
+    """Overlay one log message onto the store. Extra keys (invite flags) survive."""
+    existing = _registrations.get(parsed["discord_id"], {})
+    merged = {
+        **existing,
+        **parsed,
+        "discord_username": parsed.get("discord_username") or existing.get("discord_username", ""),
+        "validated_by": parsed.get("validated_by")
+        or (None if parsed.get("status") == "pending" else existing.get("validated_by")),
+    }
+    _registrations[parsed["discord_id"]] = merged
+    return merged
 
 
 def _notice_text(record: dict) -> str | None:
@@ -331,8 +364,14 @@ def _notice_text(record: dict) -> str | None:
         return None
     if record.get("status") == "approved":
         if sent:
-            return "DM envoyé — elle a été prévenue qu’elle est validée créateur."
-        return "DM non envoyé — ses messages privés sont fermés, elle n’a pas été prévenue."
+            text = "DM envoyé — elle a été prévenue qu’elle est validée créateur."
+        else:
+            text = "DM non envoyé — ses messages privés sont fermés, elle n’a pas été prévenue."
+        if record.get("creator_invite_sent"):
+            text += f" {INVITE_SENT_MARKER}"
+        elif record.get("creator_invite_error") or record.get("creator_invite_sent") is False:
+            text += f" {INVITE_MISSING_MARKER}"
+        return text
     if record.get("status") == "rejected":
         if sent:
             return "DM envoyé — elle a été prévenue du refus."
@@ -435,14 +474,7 @@ async def sync_registration_log(client: discord.Client) -> None:
                 parsed = _record_from_message(message)
                 if parsed is None:
                     continue
-                existing = _registrations.get(parsed["discord_id"], {})
-                _registrations[parsed["discord_id"]] = {
-                    **existing,
-                    **parsed,
-                    "discord_username": parsed["discord_username"] or existing.get("discord_username", ""),
-                    "validated_by": parsed["validated_by"]
-                    or (None if parsed["status"] == "pending" else existing.get("validated_by")),
-                }
+                merge_log_record(parsed)
                 latest[parsed["discord_id"]] = message
         except discord.HTTPException as exc:
             print(f"[CREATOR] Could not read registration log: {exc}")
@@ -600,27 +632,56 @@ async def review_registration(interaction: discord.Interaction, user_id: int, st
     if status == "approved":
         role_granted = await grant_creator_role(interaction.guild, user_id, "Creator application approved")
 
-    if status == "approved":
-        from embeds import channel_mention
+    user = None
+    try:
+        user = await interaction.client.fetch_user(user_id)
+        if not record.get("discord_username"):
+            record["discord_username"] = user.name
+    except discord.HTTPException:
+        user = None
 
-        dm = (
-            "✅ **Ta demande a été acceptée !** Tu es maintenant officiellement **créateur JobShift**.\n\n"
-            f"Tu peux dès maintenant créer ton contenu : va dans {channel_mention('content_bot')} et clique sur "
-            "**Générer du contenu**. La première fois, tu crées ton **persona** (ton personnage unique, "
-            "à partir d’une photo), puis tes carrousels sont générés avec lui.\n\n"
-            "Tes infos de paiement sont bien enregistrées."
-        )
+    invite_url = None
+    invite_error = None
+    already_accepted = False
+    if status == "approved":
+        display_name = _discord_display_name(interaction, user_id, user, record)
+        unexpected = ""
+        try:
+            invited = await request_creator_invite(record, display_name=display_name)
+        except CreatorInviteError as exc:
+            invite_error = exc.public_message()
+        except Exception as exc:
+            unexpected = type(exc).__name__
+            invite_error = "erreur inattendue"
+        else:
+            invite_url = invited.invite_url
+            already_accepted = invited.already_accepted
+            if invited.creator_id:
+                record["creator_platform_id"] = invited.creator_id
+        if invite_error:
+            extra = f" [{unexpected}]" if unexpected else ""
+            print(f"[CREATOR] Invite link failed for {discord_id}: {invite_error}{extra}")
+
+    if status == "approved":
+        dm = _approval_dm(invite_url, already_accepted=already_accepted)
     else:
         dm = "Ton inscription à **JobShift Posting** n’a pas été retenue cette fois-ci."
     sent = False
-    try:
-        user = await interaction.client.fetch_user(user_id)
-        await user.send(dm)
-        sent = True
-    except discord.HTTPException:
-        pass
+    if user is not None:
+        try:
+            await user.send(dm)
+            sent = True
+        except discord.HTTPException:
+            sent = False
 
     record["dm_sent"] = sent
+    if status == "approved" and sent and invite_url:
+        record["creator_invite_sent"] = True
+        record["creator_invite_sent_at"] = _now_iso()
+        record.pop("creator_invite_error", None)
+    elif status == "approved" and invite_error:
+        record["creator_invite_sent"] = False
+        record["creator_invite_error"] = invite_error
     _registrations[discord_id] = record
     _save_store()
     if interaction.message:
@@ -628,14 +689,27 @@ async def review_registration(interaction: discord.Interaction, user_id: int, st
             await interaction.message.edit(embed=registration_embed(record), view=None)
         except discord.HTTPException:
             pass
+    if status == "approved" and invite_error:
+        await _report_invite_failure(
+            interaction.client,
+            record,
+            invite_error,
+            fallback=getattr(interaction, "channel", None),
+        )
 
     if status == "approved":
         lookup = record["discord_username"] or discord_id
         role_note = "" if role_granted else " ⚠️ Rôle Creator non attribué (permission Manage Roles du bot ?)."
-        if sent:
+        if sent and invite_url:
+            dm_note = " DM envoyé : elle sait qu’elle est validée créateur. Lien Creator inclus."
+        elif sent:
             dm_note = " DM envoyé : elle sait qu’elle est validée créateur."
+        elif invite_url:
+            dm_note = " ⚠️ DM non envoyé (messages privés fermés) : le lien Creator n’a pas été délivré."
         else:
             dm_note = " ⚠️ DM non envoyé (messages privés fermés) : elle n’a pas été prévenue."
+        if invite_error:
+            dm_note += f" ⚠️ Lien Creator non envoyé ({invite_error})."
         msg = (
             f"Validée et enregistrée pour les paiements. Retrouve-la avec `/username nom:{lookup}`."
             f"{role_note}{dm_note}"
@@ -644,6 +718,55 @@ async def review_registration(interaction: discord.Interaction, user_id: int, st
         dm_note = " DM envoyé." if sent else " ⚠️ DM non envoyé (messages privés fermés)."
         msg = f"Refusée.{dm_note}"
     await interaction.followup.send(msg, ephemeral=True)
+
+
+def _discord_display_name(interaction: discord.Interaction, user_id: int, user, record: dict) -> str:
+    """Server nickname, then Discord display name, then the form username."""
+    guild = interaction.guild
+    member = guild.get_member(user_id) if guild is not None else None
+    if member is not None and str(member.display_name or "").strip():
+        return str(member.display_name).strip()
+    if user is not None:
+        for value in (
+            getattr(user, "global_name", None),
+            getattr(user, "display_name", None),
+            getattr(user, "name", None),
+        ):
+            if value and str(value).strip():
+                return str(value).strip()
+    return str(record.get("discord_username") or record.get("discord_id") or "").strip()
+
+
+def _approval_dm(invite_url: str | None = None, *, already_accepted: bool = False) -> str:
+    from embeds import channel_mention
+
+    dm = (
+        "✅ **Ta demande a été acceptée !** Tu es maintenant officiellement **créateur JobShift**.\n\n"
+        f"Tu peux dès maintenant créer ton contenu : va dans {channel_mention('content_bot')} et clique sur "
+        "**Générer du contenu**. La première fois, tu crées ton **persona** (ton personnage unique, "
+        "à partir d’une photo), puis tes carrousels sont générés avec lui.\n\n"
+        "Tes infos de paiement sont bien enregistrées."
+    )
+    if invite_url:
+        dm += "\n\n" + invite_paragraph(invite_url, already_accepted=already_accepted)
+    return dm
+
+
+async def _report_invite_failure(client, record: dict, error: str, *, fallback=None) -> None:
+    """Tell the staff log that approval continued without the Creator link."""
+    text = invite_failure_message(record, error)
+    print(f"[CREATOR] {text}")
+    channel = client.get_channel(_log_channel_id()) if client is not None else None
+    if getattr(channel, "send", None) is None and getattr(fallback, "id", None) == _log_channel_id():
+        channel = fallback
+    send = getattr(channel, "send", None)
+    if send is None:
+        print(f"[CREATOR] Staff log channel {_log_channel_id()} unavailable, invite failure kept in the console only.")
+        return
+    try:
+        await send(text, allowed_mentions=discord.AllowedMentions.none())
+    except discord.HTTPException as exc:
+        print(f"[CREATOR] Could not post invite failure for {record.get('discord_id')}: HTTP {exc.status}")
 
 
 # ---------------------------------------------------------------------------
