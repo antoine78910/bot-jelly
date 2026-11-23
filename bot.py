@@ -12,6 +12,7 @@ from content_generator import ContentGeneratorView
 from payout_submission import PayoutSubmitView, PayoutTicketView
 import persona
 import support_ai
+import video_generator
 from proof_drip import post_proof_command, say_command, start_proof_drip
 from registration import (
     RegisterView,
@@ -108,6 +109,7 @@ async def on_ready():
     start_proof_drip(bot)
     await support_ai.start_support_ai(bot)
     await persona.start_persona(bot)
+    await video_generator.start(bot)
 
 
 @bot.event
@@ -625,6 +627,7 @@ bot.tree.add_command(post_proof_command)
 bot.tree.add_command(say_command)
 support_ai.register(bot)
 persona.register(bot)
+video_generator.register(bot)
 
 
 def _validate_token(token: str) -> None:

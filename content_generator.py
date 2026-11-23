@@ -67,7 +67,8 @@ def panel_embed() -> discord.Embed:
             "Clique sur un bouton ci-dessous pour générer un carrousel "
             "(accroche, méthode, ou liste d’entreprises).\n\n"
             "**Générer du contenu** — 1 carrousel\n"
-            "**Générer un lot** — jusqu’à 5 carrousels (accroches, textes, CTA et photos différents)\n\n"
+            "**Générer un lot** — jusqu’à 5 carrousels (accroches, textes, CTA et photos différents)\n"
+            "**Vidéo** : une vidéo unique prête à poster, livrée dans ton fil privé (1 à 3 min)\n\n"
             "🧬 **Premier clic : ton persona unique.** Envoie une photo (toi ou une photo Pinterest) "
             "et choisis Femme ou Homme : 22 photos de ton personnage sont générées (≈2–3 min). "
             "Tu peux régénérer chaque image une fois, puis tu valides.\n"
@@ -80,7 +81,7 @@ def panel_embed() -> discord.Embed:
 
 
 def thread_welcome_embed(user: discord.User, mode: str) -> discord.Embed:
-    mode_label = "Générer un lot" if mode == "batch" else "Générer du contenu"
+    mode_label = {"batch": "Générer un lot", "video": "Vidéo"}.get(mode, "Générer du contenu")
     return discord.Embed(
         title="🎬 Ton espace posting",
         description=(
@@ -778,6 +779,21 @@ class ContentGeneratorView(discord.ui.View):
             await interaction.response.send_modal(BatchGenerateModal())
         await _watch_after_click(interaction, "Générer un lot")
 
+    @discord.ui.button(
+        label="Vidéo",
+        style=discord.ButtonStyle.secondary,
+        emoji="🎞️",
+        custom_id="jelly_content_video",
+    )
+    async def video_generate(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        from video_generator import handle_video_click
+
+        await handle_video_click(interaction)
+
 
 async def _creator_gate(interaction: discord.Interaction) -> bool:
     """Creators need the Creator role and a validated persona before generating.
@@ -813,7 +829,7 @@ def content_generator_panel_fingerprint() -> str:
     return _hash_payload(
         {
             "embed": _embed_payload(panel_embed()),
-            "buttons": ["jelly_content_generate", "jelly_content_batch"],
+            "buttons": ["jelly_content_generate", "jelly_content_batch", "jelly_content_video"],
         }
     )
 

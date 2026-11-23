@@ -19,3 +19,6 @@ scripts/whop_emails_all.csv
 
 # Persona packs downloaded from Speel at runtime
 carousel/assets/avatars/*_persona_*/
+
+# Vidéo button fallback store when DATA_DIR is not writable (non persistent)
+/data-local/
