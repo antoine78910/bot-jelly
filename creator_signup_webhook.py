@@ -144,8 +144,10 @@ def create_webhook_app(bot) -> web.Application:
     app.router.add_get("/health", _health_handler)
 
     from carousel_hosting import register_routes
+    import video_hosting
 
     register_routes(app)
+    video_hosting.register_routes(app)
     return app
 
 
@@ -155,7 +157,9 @@ async def start_creator_signup_webhook(bot) -> web.AppRunner | None:
         return None
 
     app = create_webhook_app(bot)
-    runner = web.AppRunner(app)
+    from video_hosting import RedactingAccessLogger
+
+    runner = web.AppRunner(app, access_log_class=RedactingAccessLogger)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
