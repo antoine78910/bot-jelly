@@ -823,6 +823,8 @@ class VariantParams:
     bg_mode: str
     bg_color: str
     pitch_sign: int = 1
+    pitch_slot: int = -1
+    pitch_lean: str = ""
     account_name: str = ""
     account_handle: str = ""
     quoter_name: str = ""
@@ -848,6 +850,13 @@ WIDTH_RANGES = {
 }
 SPEED_RANGE = (1.04, 1.15)
 SEMITONE_RANGE = (1.0, 2.0)
+# Siblings of one source cycle through 4 pitch slots by sibling index. The sign still
+# alternates every sibling, and same-sign siblings sit in different bands: on real audio a
+# 0.5 st gap fails the 0.30 sibling chromaprint guard while a 1.0 st gap passes.
+# Bands are (far edge, near edge): "far" = farther from the other same-sign band.
+PITCH_LOW = (1.00, 1.30)
+PITCH_HIGH = (2.00, 1.70)
+PITCH_SLOTS = ((1, PITCH_LOW), (-1, PITCH_LOW), (1, PITCH_HIGH), (-1, PITCH_HIGH))
 
 
 def sample_params(
@@ -857,22 +866,33 @@ def sample_params(
     attempt: int,
     *,
     pitch_sign: int,
+    pitch_band: tuple[float, float] = PITCH_LOW,
+    pitch_lean: str = "",
+    avoid_widths: tuple[float, ...] = (),
     account: dict | None = None,
     quoter: dict | None = None,
     reaction: str | None = None,
     today: date | None = None,
 ) -> VariantParams:
-    """Deterministic for a given seed. pitch_sign is forced by the caller (siblings alternate)."""
+    """Deterministic for a given seed. Sign and band come from the caller's pitch slot."""
     if pitch_sign not in (-1, 1):
         raise ValueError("pitch_sign must be -1 or +1")
+    far, near = pitch_band
+    if not all(SEMITONE_RANGE[0] <= x <= SEMITONE_RANGE[1] for x in pitch_band):
+        raise ValueError("pitch band outside 1.0-2.0 st")
     rng = random.Random(seed)
     # Pitch floor 1.0 st, never 0, as learned from the Abondy comparison.
     speed = round(rng.uniform(*SPEED_RANGE), 4)
     rng.choice((-1, 1))  # keep the prototype's draw order so the other params stay comparable
-    semitones = round(pitch_sign * rng.uniform(*SEMITONE_RANGE), 3)
+    u = rng.random()
+    # Retries lean inside the band: "far" away from same-sign siblings, "near" away from 0 st.
+    u = {"far": u * u, "near": 1 - (1 - u) ** 2}.get(pitch_lean, u)
+    semitones = round(pitch_sign * (far + (near - far) * u), 3)
     pitch_ratio = round(2 ** (semitones / 12.0), 5)
     lo, hi = WIDTH_RANGES[template]
-    width_frac = round(rng.uniform(lo, hi), 4)
+    widths = [round(rng.uniform(lo, hi), 4) for _ in range(4)]
+    # Same-layout siblings look alike at the same size: take the width farthest from theirs.
+    width_frac = max(widths, key=lambda w: min((abs(w - a) for a in avoid_widths), default=0))
     trim = round(rng.uniform(0.0, 0.20), 3)
     brightness = round(rng.uniform(-0.04, 0.02), 4)
     saturation = round(rng.uniform(0.92, 1.12), 4)

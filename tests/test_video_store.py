@@ -146,6 +146,55 @@ class SeedAndPitchTest(_Base):
         for prev, cur in zip(signs, signs[1:]):
             self.assertEqual(cur, -prev)
 
+    def test_pitch_slots_cycle_and_released_slot_is_reused(self):
+        self.add("aa01")
+        slots = []
+        for clipper in range(1, 7):
+            a = self.store.reserve(clipper, now=self.tick())
+            if clipper == 2:
+                self.store.release(a["id"], "guard")
+                again = self.store.reserve(clipper, now=self.tick())
+                self.assertEqual(again["pitch_slot"], a["pitch_slot"])  # not burned
+                a = again
+            self.assertEqual(a["pitch_sign"], 1 if a["pitch_slot"] % 2 == 0 else -1)
+            slots.append(a["pitch_slot"])
+            self.deliver(a)
+        self.assertEqual(slots, [0, 1, 2, 3, 0, 1])
+
+    def test_pitch_slot_survives_restart_and_pruning(self):
+        self.add("aa01")
+        a = self.store.reserve(1, now=self.tick())
+        self.deliver(a)
+        b = self.store.reserve(2, now=self.tick())
+        again = VideoStore(self.tmp)
+        again.recover_after_restart()  # b released by the restart
+        self.assertEqual(again.reserve(3)["pitch_slot"], b["pitch_slot"])
+        data = again._load()
+        data["assignments"] = []  # siblings pruned: fall back to the video's last delivered slot
+        again._save(data)
+        self.assertEqual(again.reserve(4)["pitch_slot"], (a["pitch_slot"] + 1) % 4)
+
+    def test_rows_without_slot_keep_alternating(self):
+        self.add("aa01")
+        self.store.reserve(1, now=self.tick())
+        data = self.store._load()
+        data["assignments"][0].pop("pitch_slot")
+        data["assignments"][0]["pitch_sign"] = -1
+        self.store._save(data)
+        self.assertEqual(self.store.reserve(2)["pitch_sign"], 1)
+
+    def test_prefers_source_with_fewer_retained_siblings(self):
+        self.add("aa01", at=self.now)
+        self.add("aa02", at=self.now + 1)
+        self.take(1)  # aa01 gets a sibling
+        data = self.store._load()
+        stamps = {"aa01": 1.0, "aa02": self.now}  # LRA alone would now pick aa01
+        for v in data["videos"]:
+            v["last_assigned_at"] = stamps[v["id"]]
+        self.store._save(data)
+        self.assertEqual(self.take(2)["video_id"], "aa02")  # fewer retained siblings wins
+        self.assertEqual(self.take(3)["video_id"], "aa01")  # tie: least recently assigned
+
     def test_concurrent_reservations_of_same_source_alternate(self):
         self.add("aa01")
         a = self.store.reserve(1, now=self.tick())

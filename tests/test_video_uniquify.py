@@ -18,6 +18,7 @@ import numpy as np
 from video_uniquify import media, metrics, pipeline
 from video_uniquify.chrome import INTER_PATH
 from video_uniquify.frames import (
+    PITCH_SLOTS,
     CANVAS_H,
     CANVAS_W,
     HOOKS,
@@ -61,6 +62,52 @@ class ParamsTest(unittest.TestCase):
         self.assertEqual((a.speed, a.semitones, a.video_x, a.views), (b.speed, b.semitones, b.video_x, b.views))
         with self.assertRaises(ValueError):
             sample_params("a", 42, "tweet_dark", 0, pitch_sign=0)
+
+    def test_pitch_slots_bands_and_alternation(self):
+        self.assertEqual([s for s, _ in PITCH_SLOTS], [1, -1, 1, -1])
+        for slot, (sign, band) in enumerate(PITCH_SLOTS):
+            values = [sample_params("x", seed, "tweet_dark", 0, pitch_sign=sign, pitch_band=band).semitones
+                      for seed in range(200)]
+            lo, hi = sorted(band)
+            self.assertTrue(all(lo <= abs(v) <= hi and (v > 0) == (sign > 0) for v in values), slot)
+        with self.assertRaises(ValueError):
+            sample_params("x", 1, "tweet_dark", 0, pitch_sign=1, pitch_band=(0.5, 1.0))
+
+    def test_template_order_avoids_recent_siblings(self):
+        sig = lambda t: pipeline.Signature("r", [], [], [], 1, t)
+        for seed in range(6):
+            order = pipeline.template_order(seed, [sig("quote_dark"), sig("tweet_light")])
+            self.assertEqual(order[0], "tweet_dark")
+            self.assertEqual(order[-1], "quote_dark")
+            self.assertEqual(sorted(order), sorted(TEMPLATES))
+        self.assertEqual(len({pipeline.template_order(s, [])[0] for s in range(3)}), 3)
+
+    def test_template_order_ranks_by_sibling_usage(self):
+        sig = lambda t: pipeline.Signature("r", [], [], [], 1, t)
+        siblings = [sig("tweet_dark"), sig("quote_dark"), sig("quote_dark"), sig("tweet_light"), sig("quote_dark")]
+        self.assertEqual(pipeline.template_order(0, siblings), ["tweet_light", "tweet_dark", "quote_dark"])
+
+    def test_retry_lean_follows_failed_audio_guard(self):
+        fail = lambda *names: [{"name": n, "ok": False} for n in names] + [{"name": "phash_mean_vs_original", "ok": True}]
+        self.assertEqual(pipeline.next_lean(fail("chromaprint_vs_original"), ""), "near")
+        self.assertEqual(pipeline.next_lean(fail("chromaprint_vs_sibling"), ""), "far")
+        self.assertEqual(pipeline.next_lean(fail("phash_mean_vs_sibling"), "near"), "near")
+        self.assertEqual(pipeline.next_lean(fail("chromaprint_vs_original", "chromaprint_vs_sibling"), "far"), "far")
+        sign, band = PITCH_SLOTS[1]
+        for seed in range(50):
+            near = sample_params("x", seed, "tweet_dark", 1, pitch_sign=sign, pitch_band=band, pitch_lean="near")
+            far = sample_params("x", seed, "tweet_dark", 1, pitch_sign=sign, pitch_band=band, pitch_lean="far")
+            self.assertTrue(-1.3 <= near.semitones <= far.semitones <= -1.0)
+
+    def test_width_moves_away_from_siblings(self):
+        gaps = []
+        for seed in range(100):
+            plain = sample_params("x", seed, "tweet_light", 0, pitch_sign=1)
+            away = sample_params("x", seed, "tweet_light", 0, pitch_sign=1, avoid_widths=(0.59,))
+            self.assertTrue(0.55 - 0.002 <= away.width_frac <= 0.63 + 0.002)
+            gaps.append((abs(plain.width_frac - 0.59), abs(away.width_frac - 0.59)))
+        self.assertGreater(sum(g[1] for g in gaps), sum(g[0] for g in gaps) * 1.3)
+        self.assertTrue(all(a >= p - 1e-9 for p, a in gaps))
 
     def test_retry_seeds_differ_and_keep_sign(self):
         seeds = {pipeline.attempt_seed(123, k) for k in range(pipeline.MAX_ATTEMPTS)}
@@ -221,7 +268,8 @@ class RenderUniqueTest(unittest.TestCase):
 
         def spy_sample(*args, **kwargs):
             params = real_sample(*args, **kwargs)
-            self.sample_calls.append({"sign": kwargs["pitch_sign"], "semitones": params.semitones})
+            self.sample_calls.append({"sign": kwargs["pitch_sign"], "semitones": params.semitones,
+                                      "template": params.template})
             return params
 
         self.patches = [
@@ -252,12 +300,16 @@ class RenderUniqueTest(unittest.TestCase):
     def test_passes_on_last_retry_and_deletes_rejected(self):
         work = self.tmp / "work"
         with self._evaluate_sequence([False, False, False, True]):
-            result = pipeline.render_unique(self.src, work, seed=99, pitch_sign=-1)
+            result = pipeline.render_unique(self.src, work, seed=99, pitch_slot=3)
         self.assertEqual(result.report["accepted_attempt"], 3)
         self.assertEqual(len(self.encoded), 4)
         self.assertEqual(sorted(p.name for p in work.iterdir()), ["attempt_3.mp4"])
-        self.assertTrue(all(c["sign"] == -1 and c["semitones"] < 0 for c in self.sample_calls))
-        self.assertEqual(result.signature.pitch_sign, -1)
+        # slot 3 = -high on every attempt; retries only re-jitter inside the band
+        self.assertTrue(all(-2.0 <= c["semitones"] <= -1.7 for c in self.sample_calls), self.sample_calls)
+        self.assertGreater(len({c["semitones"] for c in self.sample_calls}), 1)
+        self.assertEqual((result.signature.pitch_sign, result.signature.pitch_slot), (-1, 3))
+        templates_tried = [c["template"] for c in self.sample_calls]
+        self.assertTrue(all(a != b for a, b in zip(templates_tried, templates_tried[1:])))
         self.assertEqual(len(result.signature.phash), len(pipeline.SIBLING_SOURCE_FRACS))
         templates = {a["params"]["template"] for a in result.report["attempts"]}
         self.assertGreater(len(templates), 1)
@@ -266,21 +318,21 @@ class RenderUniqueTest(unittest.TestCase):
         work = self.tmp / "work"
         with self._evaluate_sequence([False] * 4):
             with self.assertRaises(pipeline.GuardFailed) as ctx:
-                pipeline.render_unique(self.src, work, seed=5, pitch_sign=1)
+                pipeline.render_unique(self.src, work, seed=5, pitch_slot=0)
         self.assertEqual(len(ctx.exception.report["attempts"]), 4)
         self.assertEqual(list(work.iterdir()), [])
-        self.assertTrue(all(c["sign"] == 1 for c in self.sample_calls))
+        self.assertTrue(all(1.0 <= c["semitones"] <= 1.3 for c in self.sample_calls))
 
     def test_missing_tools_fail_before_encoding(self):
         with mock.patch.object(media, "selfcheck", return_value=["fpcalc introuvable"]):
             with self.assertRaises(media.MediaError):
-                pipeline.render_unique(self.src, self.tmp / "w", seed=1, pitch_sign=1)
+                pipeline.render_unique(self.src, self.tmp / "w", seed=1, pitch_slot=0)
         self.assertEqual(self.encoded, [])
 
     def test_short_source_fingerprint_fails_closed(self):
         with mock.patch.object(media, "fingerprint", return_value=_rand_fp(1, n=10)):
             with self.assertRaises(media.MediaError):
-                pipeline.render_unique(self.src, self.tmp / "w", seed=1, pitch_sign=1)
+                pipeline.render_unique(self.src, self.tmp / "w", seed=1, pitch_slot=0)
         self.assertEqual(self.encoded, [])
 
     def test_cancel_removes_partial_output(self):
@@ -292,7 +344,7 @@ class RenderUniqueTest(unittest.TestCase):
 
         with mock.patch.object(pipeline, "encode", side_effect=cancelled_encode):
             with self.assertRaises(media.RenderCancelled):
-                pipeline.render_unique(self.src, work, seed=1, pitch_sign=1)
+                pipeline.render_unique(self.src, work, seed=1, pitch_slot=0)
         self.assertEqual(list(work.iterdir()), [])
 
 
@@ -345,6 +397,20 @@ class EvaluateTest(unittest.TestCase):
             pipeline.Signature.from_json({**sig.to_json(), "phash": ["zz"]})
 
 
+def _note(rate: float, salt: float, octaves: float) -> str:
+    """Pseudo-random, non-chromatic pitch per step (a chromatic scale maps onto itself when
+    shifted by whole semitones, and pure noise is too short for a usable fingerprint)."""
+    h = f"sin(floor(t*{rate})*{salt})*43758.5453"
+    return f"pow(2,{octaves}*({h}-floor({h})))"
+
+
+# Two voices changing pitch 3x and 1.3x per second, so chromaprint can tell a pitch shift apart.
+MELODY = (
+    f"0.35*sin(2*PI*t*200*{_note(3, 12.9898, 2)})"
+    f"+0.25*sin(2*PI*t*90*{_note(1.3, 78.233, 1.5)})"
+)
+
+
 @unittest.skipUnless(
     os.getenv("VIDEO_E2E") == "1" and not media.selfcheck(),
     "set VIDEO_E2E=1 on a box with ffmpeg+rubberband, ffprobe and fpcalc",
@@ -356,13 +422,15 @@ class RealEncodeTest(unittest.TestCase):
             src = tmp / "src.mp4"
             code, _o, err = media.run_cmd([
                 media.ffmpeg_bin(), "-nostdin", "-v", "error", "-y",
-                "-f", "lavfi", "-i", "testsrc2=s=1080x1920:r=30:d=8",
-                "-f", "lavfi", "-i", "anoisesrc=d=8:c=pink:r=44100",
+                "-f", "lavfi", "-i", "testsrc2=s=1080x1920:r=30:d=24",
+                "-f", "lavfi", "-i", f"aevalsrc='{MELODY}':s=44100:d=24",
+                "-f", "lavfi", "-i", "anoisesrc=d=24:c=pink:a=0.04",
+                "-filter_complex", "[1:a][2:a]amix=inputs=2[a]", "-map", "0:v", "-map", "[a]",
                 "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", str(src),
             ], timeout=120)
             self.assertEqual(code, 0, err)
             try:
-                result = pipeline.render_unique(src, tmp / "w", seed=random.randrange(2**32), pitch_sign=1)
+                result = pipeline.render_unique(src, tmp / "w", seed=random.randrange(2**32), pitch_slot=2)
             except pipeline.GuardFailed as exc:
                 self.fail(f"guards failed: {exc.report}")
             self.assertEqual(media.output_problems(media.probe(result.output)), [])

@@ -88,15 +88,17 @@ class _Base(unittest.IsolatedAsyncioTestCase):
         return make_member(self.guild, name=name, roles=(creator_role_id(),))
 
     def fake_render(self, *, fail=None):
-        def render(src, work_dir, *, seed, pitch_sign, siblings, ref, cancel):
-            self.render_calls.append({"seed": seed, "pitch_sign": pitch_sign, "siblings": len(siblings), "src": src})
+        def render(src, work_dir, *, seed, pitch_slot, siblings, ref, cancel):
+            pitch_sign = 1 if pitch_slot % 2 == 0 else -1
+            self.render_calls.append({"seed": seed, "pitch_slot": pitch_slot, "pitch_sign": pitch_sign,
+                                      "siblings": len(siblings), "src": src})
             if fail is not None:
                 raise fail
             work_dir.mkdir(parents=True, exist_ok=True)
             out = work_dir / "attempt_0.mp4"
             out.write_bytes(b"rendered-" + ref.encode())
             params = sample_params("x", seed, "tweet_dark", 0, pitch_sign=pitch_sign)
-            sig = pipeline.Signature(ref, [0.25, 0.5, 0.75], ["00" * 8] * 3, list(range(60)), pitch_sign, "tweet_dark")
+            sig = pipeline.Signature(ref, [0.25, 0.5, 0.75], ["00" * 8] * 3, list(range(60)), pitch_sign, "tweet_dark", pitch_slot)
             return pipeline.RenderResult(out, params, sig, {"elapsed_s": 0.1, "accepted_attempt": 0})
 
         return mock.patch.object(pipeline, "render_unique", side_effect=render)
@@ -180,8 +182,8 @@ class ButtonTest(_Base):
         self.assertIn("n°2", " ".join(interactions[1].texts()))
         self.assertIn("n°3", " ".join(interactions[2].texts()))
         self.assertIn("3 à 9 min", " ".join(interactions[2].texts()))
-        signs = [c["pitch_sign"] for c in self.render_calls]
-        self.assertEqual(signs, [signs[0], -signs[0], signs[0]])
+        self.assertEqual([c["pitch_slot"] for c in self.render_calls], [0, 1, 2])
+        self.assertEqual([c["pitch_sign"] for c in self.render_calls], [1, -1, 1])
         self.assertEqual([c["siblings"] for c in self.render_calls], [0, 1, 2])
         self.assertEqual(len({c["seed"] for c in self.render_calls}), 3)
 

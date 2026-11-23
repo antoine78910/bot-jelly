@@ -12,7 +12,13 @@ atomic replace under one lock, so reservations and deliveries are serialized.
 
 Rotation: among active sources, a clipper never gets the same source twice until
 they have had every active source once (one cycle); then a new cycle starts.
-Within those candidates the least recently assigned source (globally) wins.
+Within those candidates the source with the fewest retained siblings wins (each new
+sibling is compared with all of them), then the least recently assigned (globally).
+
+Pitch slots: siblings of a source cycle through 4 slots (0 +low, 1 -low, 2 +high,
+3 -high, see video_uniquify.frames.PITCH_SLOTS): next slot = latest live sibling's
+slot + 1. A released reservation is not live, so the next request reuses its slot
+instead of burning it. Even slots are positive, so the sign still alternates.
 """
 
 from __future__ import annotations
@@ -37,6 +43,16 @@ STALE_WORK_S = 6 * 3600
 # compared with their own neighbours; past this many, comparisons only grow cost.
 SIBLING_KEEP = 50
 LINK_TTL_S = 7 * 24 * 3600
+
+
+PITCH_SLOT_COUNT = 4  # must match video_uniquify.frames.PITCH_SLOTS
+
+
+def _slot_of(assignment: dict) -> int:
+    slot = assignment.get("pitch_slot")
+    if isinstance(slot, int) and 0 <= slot < PITCH_SLOT_COUNT:
+        return slot
+    return 0 if assignment.get("pitch_sign") == 1 else 1  # rows written before slots existed
 
 
 class StoreUnavailable(Exception):
@@ -182,6 +198,7 @@ class VideoStore:
                 "last_assigned_at": None,
                 "assigned_count": 0,
                 "last_pitch_sign": 0,
+                "last_pitch_slot": None,
             }
             data["videos"].append(video)
             self._save(data)
@@ -239,13 +256,22 @@ class VideoStore:
             if not candidates:
                 cycle += 1
                 candidates = active
-            video = min(candidates, key=lambda v: (v.get("last_assigned_at") or 0, v["added_at"], v["id"]))
+            retained: dict[str, int] = {}
+            for a in live:
+                if a["status"] == "reserved" or a.get("has_signature"):
+                    retained[a["video_id"]] = retained.get(a["video_id"], 0) + 1
+            video = min(candidates, key=lambda v: (
+                retained.get(v["id"], 0), v.get("last_assigned_at") or 0, v["added_at"], v["id"],
+            ))
             seed = self.seed_for(data["salt"], clipper_id, video["id"], cycle)
             siblings = sorted(
                 (a for a in live if a["video_id"] == video["id"]), key=lambda a: a["created_at"]
             )
-            previous = siblings[-1]["pitch_sign"] if siblings else video.get("last_pitch_sign", 0)
-            pitch_sign = -previous if previous in (-1, 1) else (1 if seed & 1 else -1)
+            previous = _slot_of(siblings[-1]) if siblings else video.get("last_pitch_slot")
+            if previous is None and video.get("last_pitch_sign") in (-1, 1):
+                previous = 0 if video["last_pitch_sign"] == 1 else 1  # store written before slots
+            pitch_slot = 0 if previous is None else (previous + 1) % PITCH_SLOT_COUNT
+            pitch_sign = 1 if pitch_slot % 2 == 0 else -1
             assignment = {
                 "id": secrets.token_hex(8),
                 "video_id": video["id"],
@@ -254,6 +280,7 @@ class VideoStore:
                 "cycle": cycle,
                 "seed": seed,
                 "pitch_sign": pitch_sign,
+                "pitch_slot": pitch_slot,
                 "status": "reserved",
                 "reason": "",
                 "created_at": now,
@@ -301,6 +328,7 @@ class VideoStore:
                 if v["id"] == a["video_id"]:
                     v["assigned_count"] = int(v.get("assigned_count", 0)) + 1
                     v["last_pitch_sign"] = a["pitch_sign"]
+                    v["last_pitch_slot"] = _slot_of(a)
             self._save(data)
             return dict(a)
 

@@ -71,7 +71,7 @@ class VideoJob:
     clipper_id: int
     video_id: str
     seed: int
-    pitch_sign: int
+    pitch_slot: int
     member: discord.abc.User
     thread: discord.abc.Messageable
     interaction: discord.Interaction | None = None
@@ -252,7 +252,7 @@ async def run_render(job: VideoJob, source: Path, siblings: list[pipeline.Signat
         source,
         work_dir,
         seed=job.seed,
-        pitch_sign=job.pitch_sign,
+        pitch_slot=job.pitch_slot,
         siblings=siblings,
         ref=job.assignment_id,
         cancel=job.cancel,
@@ -441,7 +441,7 @@ async def handle_video_click(interaction: discord.Interaction) -> None:
             clipper_id=member.id,
             video_id=assignment["video_id"],
             seed=assignment["seed"],
-            pitch_sign=assignment["pitch_sign"],
+            pitch_slot=assignment["pitch_slot"],
             member=member,
             thread=thread,
             interaction=interaction,

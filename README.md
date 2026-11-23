@@ -25,10 +25,20 @@ encode, guards; Inter font vendored under SIL OFL 1.1).
 
 ### Rotation and uniqueness
 
-- Least recently assigned active source first (global). A creator never gets the same source twice
+- Among the sources the creator has not had yet in this cycle: fewest retained siblings first (every
+  new variant is compared with all of them), then least recently assigned (global). A creator never gets the same source twice
   until they have had every active source once (a cycle), then a new cycle starts.
 - Seed per assignment = HMAC-SHA256(salt, clipper, video, cycle). The salt lives in the store and is never printed.
-- Siblings (deliveries of the same source) alternate pitch sign; the sign stays fixed across retries.
+- Pitch slots: siblings (deliveries of the same source) cycle through 4 slots by sibling index:
+  `+low, -low, +high, -high` (low 1.00 to 1.30 st, high 1.70 to 2.00 st). The sign still alternates
+  every sibling. The slot is stored on the assignment (`pitch_slot`) and on the video (`last_pitch_slot`,
+  after delivery), so it survives restarts. Next slot = latest live sibling's slot + 1; a released or
+  failed reservation is not live, so the next request reuses that slot instead of burning it.
+  Retries keep the slot and only re-jitter inside it: after a vs-original audio failure the draw leans
+  away from 1.0 st, after a vs-sibling audio failure it leans toward the band's far edge.
+- Templates per attempt: the template used by the fewest retained siblings first, then not the newest
+  sibling's; consecutive attempts always change template. The video width is picked away from the
+  siblings' widths (still inside the template's range, overall 55 to 78 %).
 - Guards on every attempt, means over aligned frames:
   vs original pHash >= 16/64, SSIM <= 0.5, chromaprint <= 0.20;
   vs every retained sibling pHash >= 10 (frames taken at the same source instants), chromaprint <= 0.30.
@@ -37,6 +47,28 @@ encode, guards; Inter font vendored under SIL OFL 1.1).
 - Fail closed: no audio, a fingerprint too short to compare, or a NaN/inf metric is a failed guard.
 - An assignment is marked delivered only after the link is published **and** the thread message is sent.
   Any failure before that deletes the link and releases the reservation.
+
+### Structural limit (decision for Antoine)
+
+Measured on the real clip (Linux, real fpcalc): same-sign siblings 0.5 st apart score 0.33 to 0.44 on
+chromaprint (limit 0.30); 1.0 st apart, 0.14 to 0.24; opposite signs about 0.0. Speed changes do not
+help. Inside ±1 to 2 st this leaves about **4 well-separated audio slots per source**, and visually only
+3 templates (a 4th sibling has to share one, often failing pHash ≥ 10 on that pair).
+
+So the 5th and later delivery of the same source will probably fail the sibling guard against slot 1's
+delivery, and the creator gets "Impossible de produire une version assez différente", until older
+siblings age out (signature housekeeping keeps the newest 50 per source, so in practice they don't).
+Preferring sources with fewer retained siblings spreads deliveries, but with N active sources the
+limit is about 4×N deliveries before failures start.
+
+Options (not implemented):
+1. Compare siblings only within the 7-day link window: older variants have probably been posted
+   already, and the guard is about variants live at the same time. Cheapest change (drop expired
+   signatures in housekeeping).
+2. Cap deliveries per source at 4 per cycle and rotate creators onto other sources; staff add sources as
+   needed (`/list-videos` shows deliveries per source).
+3. Widen the audio space: a larger pitch range (outside the approved ±2 st) or an extra audio treatment
+   (EQ/room tone/background bed) evaluated against the same thresholds.
 
 ### Queue
 

@@ -213,6 +213,7 @@ async def run(src: Path, out: Path, clippers: int, title: str) -> int:
                     "status": a.get("status"),
                     "reason": a.get("reason"),
                     "pitch_sign": a.get("pitch_sign"),
+                    "pitch_slot": a.get("pitch_slot"),
                     "cycle": a.get("cycle"),
                     "ephemeral": [_redact(t) for t in interaction.texts()],
                     "thread_messages": [_redact(m.get("content") or "") for m in (thread.sent if thread else [])],

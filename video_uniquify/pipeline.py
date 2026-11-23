@@ -25,7 +25,7 @@ from typing import Sequence
 import numpy as np
 
 from . import media, metrics
-from .frames import CANVAS_H, CANVAS_W, TEMPLATES, VariantParams, render_frame, sample_params
+from .frames import CANVAS_H, CANVAS_W, PITCH_SLOTS, TEMPLATES, VariantParams, render_frame, sample_params
 
 PHASH_MIN_VS_ORIG = 16
 SSIM_MAX_VS_ORIG = 0.5
@@ -68,6 +68,8 @@ class Signature:
     fingerprint: list[int]
     pitch_sign: int = 0
     template: str = ""
+    pitch_slot: int = -1
+    width_frac: float = 0.0
 
     def to_json(self) -> dict:
         return asdict(self)
@@ -81,6 +83,8 @@ class Signature:
             fingerprint=[int(x) for x in data["fingerprint"]],
             pitch_sign=int(data.get("pitch_sign", 0)),
             template=str(data.get("template", "")),
+            pitch_slot=int(data.get("pitch_slot", -1)),
+            width_frac=float(data.get("width_frac", 0.0)),
         )
         if len(sig.phash) != len(sig.source_fracs):
             raise ValueError("signature phash/fracs mismatch")
@@ -116,8 +120,31 @@ def attempt_seed(seed: int, attempt: int) -> int:
     return int.from_bytes(digest[:8], "big")
 
 
-def template_for(seed: int, attempt: int) -> str:
-    return TEMPLATES[(seed + attempt) % len(TEMPLATES)]
+def template_order(seed: int, siblings: Sequence["Signature"]) -> list[str]:
+    """Templates for attempts 0, 1, 2 (then again): least used by retained siblings first.
+
+    A template shared with any sibling of the same source gives near-identical frames
+    (pHash ~1 to 8), so usage count ranks first, then "used by the newest sibling".
+    Siblings come newest first. Consecutive attempts always change template, so a retry
+    never repeats the one that just failed phash_vs_sibling.
+    """
+    newest = siblings[0].template if siblings else ""
+
+    def rank(t: str) -> tuple:
+        used = sum(1 for s in siblings if s.template == t)
+        return (used, t == newest, (TEMPLATES.index(t) - seed) % len(TEMPLATES))
+
+    return sorted(TEMPLATES, key=rank)
+
+
+def next_lean(checks: list[dict], current: str) -> str:
+    """Where the next retry moves inside the pitch slot, from the audio guard that failed."""
+    failed = {c["name"] for c in checks if not c["ok"]}
+    if "chromaprint_vs_original" in failed and "chromaprint_vs_sibling" not in failed:
+        return "near"
+    if "chromaprint_vs_sibling" in failed and "chromaprint_vs_original" not in failed:
+        return "far"
+    return current
 
 
 # ---------------------------------------------------------------------------
@@ -298,13 +325,17 @@ def render_unique(
     work_dir: Path,
     *,
     seed: int,
-    pitch_sign: int,
+    pitch_slot: int,
     siblings: Sequence[Signature] = (),
     ref: str = "",
     cancel: threading.Event | None = None,
     today: date | None = None,
 ) -> RenderResult:
-    """Blocking. Run it in a worker thread, never on the event loop."""
+    """Blocking. Run it in a worker thread, never on the event loop.
+
+    The pitch slot (sign + band) is fixed for every attempt; retries only re-jitter inside it.
+    """
+    pitch_sign, pitch_band = PITCH_SLOTS[pitch_slot % len(PITCH_SLOTS)]
     started = time.monotonic()
     problems = media.selfcheck()
     if problems:
@@ -320,17 +351,25 @@ def render_unique(
         "thresholds": THRESHOLDS,
         "source_duration": round(info.duration, 3),
         "pitch_sign": pitch_sign,
+        "pitch_slot": pitch_slot,
         "siblings_retained": len(siblings),
         "threads": threads,
         "attempts": [],
     }
+    templates = template_order(seed, siblings)
+    report["template_order"] = templates
+    sibling_widths = tuple(s.width_frac for s in siblings if s.width_frac)
+    lean = ""
     for attempt in range(MAX_ATTEMPTS):
         attempt_started = time.monotonic()
         aseed = attempt_seed(seed, attempt)
         params = sample_params(
-            f"attempt{attempt}", aseed, template_for(seed, attempt), attempt,
-            pitch_sign=pitch_sign, today=today,
+            f"attempt{attempt}", aseed, templates[attempt % len(templates)], attempt,
+            pitch_sign=pitch_sign, pitch_band=pitch_band, pitch_lean=lean,
+            avoid_widths=sibling_widths, today=today,
         )
+        params.pitch_slot = pitch_slot
+        params.pitch_lean = lean
         frame = work_dir / f"frame_{attempt}.png"
         out = work_dir / f"attempt_{attempt}.mp4"
         entry: dict = {"attempt": attempt, "params": _params_summary(params)}
@@ -364,6 +403,7 @@ def render_unique(
         finally:
             frame.unlink(missing_ok=True)
         entry["elapsed_s"] = round(time.monotonic() - attempt_started, 2)
+        lean = next_lean(entry.get("checks", []), lean)
         report["attempts"].append(entry)
         if result["ok"]:
             report["accepted_attempt"] = attempt
@@ -375,6 +415,8 @@ def render_unique(
                 fingerprint=[int(x) for x in var_fp],
                 pitch_sign=pitch_sign,
                 template=params.template,
+                pitch_slot=pitch_slot,
+                width_frac=params.width_frac,
             )
             return RenderResult(output=out, params=params, signature=signature, report=report)
         out.unlink(missing_ok=True)  # never leak a rejected render
